@@ -232,7 +232,7 @@
     } else {
       acao = '<span class="pill p-fim">Finalizado</span>';
     }
-    return '<tr><td class="num">' + esc(p.pedido) + '</td><td>' + esc(p.cliente) + '</td><td class="dh">' + esc(dataBr(p.entrega)) + '</td><td class="qtd">' + (p.qtd_kit || "—") + '</td>' +
+    return '<tr><td class="num">' + esc(p.pedido) + '</td><td>' + esc(p.cliente) + '</td><td class="dh">' + esc(dataBr(p.entrega)) + '</td><td class="qtd">' + (p.qtd_kit != null ? p.qtd_kit : "—") + '</td>' +
       '<td class="dh">' + esc(fmt(ap && ap.inicio) || "—") + '</td><td class="dh">' + esc(fmt(ap && ap.termino) || "—") + '</td>' +
       '<td>' + acao + '</td></tr>';
   }
@@ -244,18 +244,14 @@
       '<td class="dh">' + duracaoTxt(it.duracao_min) + '</td><td>' + pill + '</td></tr>';
   }
 
+  function fmtNum(n) { return Number(n || 0).toLocaleString("pt-BR"); }
+
   function render() {
     var saidas = itens.map(saida);
     var andamento = saidas.filter(function (it) { return it.status === "Em andamento"; });
     var finalizados = saidas.filter(function (it) { return it.status === "Finalizado"; });
 
-    $("tiles").innerHTML =
-      '<div class="tile"><b>' + andamento.length + '</b><span>Em andamento</span></div>' +
-      '<div class="tile"><b>' + finalizados.length + '</b><span>Finalizadas</span></div>' +
-      '<div class="tile"><b>' + saidas.length + '</b><span>Total de ordens</span></div>';
-
-    // tabela de pedidos do dia, em ordem decrescente pelo número do pedido,
-    // cada linha casada com o apontamento correspondente (se já tiver um)
+    // casa cada pedido de hoje com o apontamento correspondente (se já tiver um)
     var porOrdemTexto = {};
     saidas.forEach(function (it) {
       var k = norm(it.ordem);
@@ -264,6 +260,23 @@
     pedidosHoje.forEach(function (p) {
       p._apontamento = porOrdemTexto[norm(p.pedido + " - " + p.cliente)] || null;
     });
+
+    // totais de kits: Roteiro = soma de todos os pedidos de hoje; Produzido =
+    // soma só dos pedidos já finalizados
+    var kitsRoteiro = 0, kitsProduzido = 0;
+    pedidosHoje.forEach(function (p) {
+      var q = Number(p.qtd_kit) || 0;
+      kitsRoteiro += q;
+      if (p._apontamento && p._apontamento.termino) kitsProduzido += q;
+    });
+
+    $("tiles").innerHTML =
+      '<div class="tile"><b>' + andamento.length + '</b><span>Em andamento</span></div>' +
+      '<div class="tile"><b>' + finalizados.length + '</b><span>Finalizadas</span></div>' +
+      '<div class="tile"><b>' + saidas.length + '</b><span>Total de ordens</span></div>' +
+      '<div class="tile"><b>' + fmtNum(kitsRoteiro) + '</b><span>Kits do Roteiro</span></div>' +
+      '<div class="tile"><b>' + fmtNum(kitsProduzido) + '</b><span>Kits Produzidos</span></div>' +
+      '<div class="tile"><b>' + fmtNum(pedidosHoje.length) + '</b><span>Qtde de Ordens</span></div>';
 
     // agrupa por roteiro, preservando a ordem em que cada roteiro foi carregado
     // (pedidosHoje já vem ordenado por atualizado_em), e dentro de cada roteiro
