@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apontamento de Produção</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --bg:#F3F5FC; --surface:#FFFFFF; --surface-2:#F0F3FF; --border:#E4E8F6; --text:#1C2250; --dim:#6C7499;
+          --amber:#2B3FE0; --amber-d:#1F2FB8; --warn:#E08A1E; --red:#D6453D; --green:#1E9A5A; --blue:#2B3FE0;
+          --sombra:0 6px 22px rgba(43,63,224,.09); color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:'Poppins','Inter',sans-serif; font-size:14px; padding:0 0 80px; }
+  .hero { background:linear-gradient(135deg,#17228A 0%,#2B3FE0 60%,#4A5CF0 100%); color:#fff; border-radius:0 0 40px 40px; padding:34px 20px 30px; box-shadow:0 14px 40px rgba(43,63,224,.25); position:relative; overflow:hidden; }
+  .hero::before { content:""; position:absolute; right:-90px; top:-90px; width:340px; height:340px; border-radius:50%; background:rgba(255,255,255,.07); }
+  .hero::after { content:""; position:absolute; left:-60px; bottom:-120px; width:280px; height:280px; border-radius:50%; background:rgba(255,255,255,.05); }
+  .hero-in { max-width:1000px; margin:0 auto; position:relative; z-index:1; }
+  .topo { display:flex; flex-wrap:wrap; gap:18px 28px; justify-content:space-between; align-items:flex-end; }
+  h1 { font-weight:700; font-size:34px; line-height:1.15; margin:0; letter-spacing:-.3px; }
+  h1 span { display:block; font-weight:400; font-size:15px; opacity:.8; margin-bottom:6px; letter-spacing:.02em; }
+  .sub { font-size:13px; opacity:.8; margin-top:10px; max-width:520px; line-height:1.5; }
+  label.c { display:grid; gap:4px; font-size:11px; color:rgba(255,255,255,.8); text-transform:uppercase; letter-spacing:.08em; font-weight:500; }
+  input[type=text], input[type=password] { font:inherit; color:var(--text); background:#fff; border:1px solid var(--border); border-radius:10px; padding:9px 12px; min-width:0; }
+  .hero input[type=text] { border-color:transparent; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  :focus-visible { outline:2px solid var(--amber); outline-offset:2px; }
+  .hero :focus-visible { outline-color:#fff; }
+  .wrap { max-width:1000px; margin:0 auto; display:grid; gap:18px; padding:26px 20px 0; }
+  .aviso { background:rgba(214,69,61,.1); color:var(--red); border-radius:12px; padding:12px 16px; font-weight:500; }
+  .cartao { background:var(--surface); border:1px solid var(--border); border-radius:18px; box-shadow:var(--sombra); padding:20px 22px; }
+  .cartao h2 { margin:0 0 14px; font-size:15px; font-weight:600; letter-spacing:.01em; display:flex; align-items:center; gap:10px; }
+  .cartao h2 small { font-size:12px; font-weight:500; color:var(--dim); background:var(--surface-2); border-radius:999px; padding:2px 10px; }
+  .form-inicio { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+  .form-inicio label.c2 { display:grid; gap:4px; font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; font-weight:500; flex:1; min-width:220px; }
+  .form-inicio input[type=text] { width:100%; border:1px solid var(--border); border-radius:10px; padding:10px 12px; font:inherit; }
+  button.p { font:inherit; font-weight:600; background:var(--amber); color:#fff; border:0; border-radius:999px; padding:12px 26px; cursor:pointer; box-shadow:0 3px 10px rgba(43,63,224,.25); white-space:nowrap; }
+  button.p:hover { background:var(--amber-d); }
+  button.p:disabled { opacity:.5; cursor:not-allowed; }
+  .hero button.p { background:#fff; color:var(--amber); }
+  .hero button.p:hover { background:#EEF1FF; }
+  .andamento-lista { display:grid; gap:10px; }
+  .oitem { display:flex; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between; background:var(--surface-2); border-radius:14px; padding:14px 18px; }
+  .oitem .nome { font-weight:600; font-size:15px; }
+  .oitem .meta { font-size:12px; color:var(--dim); margin-top:2px; }
+  .oitem .meta b { color:var(--text); font-weight:600; }
+  button.fin { font:inherit; font-weight:600; background:var(--green); color:#fff; border:0; border-radius:999px; padding:10px 22px; cursor:pointer; box-shadow:0 3px 10px rgba(30,154,90,.25); }
+  button.fin:hover { background:#17824A; }
+  button.fin:disabled { opacity:.5; cursor:not-allowed; }
+  .vazio { padding:26px; text-align:center; color:var(--dim); }
+  .rolagem { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; min-width:720px; }
+  th { text-align:left; font-size:11px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; padding:10px 14px; border-bottom:1px solid var(--border); white-space:nowrap; background:#FAFBFF; }
+  td { padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:middle; white-space:nowrap; }
+  tr:last-child td { border-bottom:0; }
+  td.ordem { font-weight:600; white-space:normal; min-width:200px; }
+  td.dh { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--dim); }
+  .pill { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:4px 10px; border-radius:999px; white-space:nowrap; }
+  .p-and { background:rgba(224,138,30,.14); color:#B86A0A; } .p-fim { background:rgba(30,154,90,.14); color:var(--green); }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+  .tile { background:var(--surface); border-radius:16px; padding:14px 18px; box-shadow:var(--sombra); border:1px solid var(--border); }
+  .tile b { display:block; font-size:28px; font-weight:700; color:var(--amber); line-height:1.1; }
+  .tile span { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; font-weight:500; }
+  [hidden] { display:none !important; }
+  #portal { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:50; }
+  #portal .caixa { background:var(--surface); border-radius:20px; box-shadow:var(--sombra); padding:32px 30px; width:min(320px,90vw); text-align:center; }
+  #portal h2 { margin:0 0 6px; font-size:18px; }
+  #portal p { margin:0 0 18px; font-size:13px; color:var(--dim); }
+  #portal input { width:100%; margin-bottom:12px; text-align:center; }
+  #portal .erro { color:var(--red); font-size:12px; min-height:16px; margin-bottom:8px; }
+</style>
+</head>
+<body>
+
+<div id="portal">
+  <div class="caixa">
+    <h2>Apontamento de Produção</h2>
+    <p>Digite a senha da equipe para entrar.</p>
+    <input type="password" id="senhaInput" placeholder="senha" autocomplete="off">
+    <div class="erro" id="senhaErro"></div>
+    <button type="button" class="p" id="bEntrar" style="width:100%">Entrar</button>
+  </div>
+</div>
+
+<div id="app" hidden>
+<div class="hero"><div class="hero-in">
+  <div class="topo">
+    <div>
+      <h1><span>Kit Lanche Express · Produção</span>Apontamento de Produção</h1>
+      <div class="sub">Clique para iniciar e para finalizar cada Ordem de Produção. Dia e horário são gravados automaticamente.</div>
+    </div>
+    <label class="c" for="lider">Líder <input type="text" id="lider" placeholder="seu nome" style="width:180px"></label>
+  </div>
+</div></div>
+<div class="wrap">
+  <div id="aviso" class="aviso" hidden></div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="cartao">
+    <h2>Iniciar nova Ordem de Produção</h2>
+    <div class="form-inicio">
+      <label class="c2" for="ordem">Ordem de Produção
+        <input type="text" id="ordem" list="sugestoes" placeholder="nome da ordem / produto" autocomplete="off">
+        <datalist id="sugestoes"></datalist>
+      </label>
+      <button type="button" class="p" id="bIniciar">Iniciar</button>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Em andamento <small id="nAnd"></small></h2>
+    <div class="andamento-lista" id="andamento"></div>
+  </div>
+
+  <div class="cartao">
+    <h2>Histórico <small id="nHist"></small></h2>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Ordem de Produção</th><th>Início</th><th>Líder (início)</th><th>Término</th><th>Líder (término)</th><th>Duração</th><th>Status</th></tr></thead>
+        <tbody id="hist"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+(function () {
+  // ---------------------------------------------------------------------
+  // CONFIGURAÇÃO -- preencha depois de criar o projeto no Supabase.
+  var SUPABASE_URL = "https://edntqddckxpvjxwcwygl.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_oVP3RWqrHWMuiIBcZ3bElQ_by2srg3R";
+  var SENHA_PAINEL = "troque-esta-senha";
+  // ---------------------------------------------------------------------
+
+  var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  var itens = [];
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
+  function lider() { return $("lider").value.trim(); }
+  function norm(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim(); }
+
+  // ---- portal de senha
+  try {
+    if (sessionStorage.getItem("apont_ok") === "1") abrirApp();
+  } catch (e) {}
+  function tentarEntrar() {
+    if ($("senhaInput").value === SENHA_PAINEL) {
+      try { sessionStorage.setItem("apont_ok", "1"); } catch (e) {}
+      abrirApp();
+    } else {
+      $("senhaErro").textContent = "Senha incorreta.";
+    }
+  }
+  function abrirApp() {
+    $("portal").hidden = true;
+    $("app").hidden = false;
+    try { $("lider").value = localStorage.getItem("apont_lider") || ""; } catch (e) {}
+    iniciarApp();
+  }
+  $("bEntrar").addEventListener("click", tentarEntrar);
+  $("senhaInput").addEventListener("keydown", function (e) { if (e.key === "Enter") tentarEntrar(); });
+
+  $("lider").addEventListener("change", function () { try { localStorage.setItem("apont_lider", lider()); } catch (e) {} });
+
+  function mostrarErro(t) { $("aviso").hidden = !t; $("aviso").textContent = t || ""; }
+
+  function fmt(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function duracaoMin(ini, fim) {
+    if (!ini || !fim) return null;
+    return Math.max(0, Math.round((new Date(fim) - new Date(ini)) / 60000));
+  }
+
+  function duracaoTxt(min) {
+    if (min === null || min === undefined) return "—";
+    var h = Math.floor(min / 60), m = min % 60;
+    return h ? (h + "h" + (m ? pad(m) + "min" : "")) : (m + " min");
+  }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+
+  function saida(row) {
+    return {
+      id: row.id,
+      ordem: row.ordem,
+      lider_inicio: row.lider_inicio || "",
+      inicio: row.inicio,
+      lider_termino: row.lider_termino || "",
+      termino: row.termino,
+      duracao_min: duracaoMin(row.inicio, row.termino),
+      status: row.termino ? "Finalizado" : "Em andamento",
+    };
+  }
+
+  function linhaAndamento(it) {
+    return '<div class="oitem"><div><div class="nome">' + esc(it.ordem) + '</div><div class="meta">Iniciado em <b>' + esc(fmt(it.inicio)) + '</b>' +
+      (it.lider_inicio ? ' por <b>' + esc(it.lider_inicio) + '</b>' : '') + '</div></div>' +
+      '<button type="button" class="fin" data-id="' + esc(it.id) + '">Finalizar</button></div>';
+  }
+
+  function linhaHist(it) {
+    var pill = it.status === "Finalizado" ? '<span class="pill p-fim">Finalizado</span>' : '<span class="pill p-and">Em andamento</span>';
+    return '<tr><td class="ordem">' + esc(it.ordem) + '</td><td class="dh">' + esc(fmt(it.inicio) || "—") + '</td><td>' + esc(it.lider_inicio || "—") + '</td>' +
+      '<td class="dh">' + esc(fmt(it.termino) || "—") + '</td><td>' + esc(it.lider_termino || "—") + '</td>' +
+      '<td class="dh">' + duracaoTxt(it.duracao_min) + '</td><td>' + pill + '</td></tr>';
+  }
+
+  function render() {
+    var saidas = itens.map(saida);
+    var andamento = saidas.filter(function (it) { return it.status === "Em andamento"; });
+    var finalizados = saidas.filter(function (it) { return it.status === "Finalizado"; });
+
+    $("tiles").innerHTML =
+      '<div class="tile"><b>' + andamento.length + '</b><span>Em andamento</span></div>' +
+      '<div class="tile"><b>' + finalizados.length + '</b><span>Finalizadas</span></div>' +
+      '<div class="tile"><b>' + saidas.length + '</b><span>Total de ordens</span></div>';
+
+    $("nAnd").textContent = andamento.length || "";
+    $("andamento").innerHTML = andamento.length
+      ? andamento.map(linhaAndamento).join("")
+      : '<div class="vazio">Nenhuma ordem em andamento. Inicie uma acima.</div>';
+
+    $("nHist").textContent = saidas.length || "";
+    $("hist").innerHTML = saidas.length
+      ? saidas.map(linhaHist).join("")
+      : '<tr><td colspan="7" class="vazio">Nenhum apontamento registrado ainda.</td></tr>';
+
+    // sugestões: nomes já usados, sem repetir, mais recente primeiro
+    var vistos = {}, sugs = [];
+    saidas.forEach(function (it) {
+      var k = norm(it.ordem);
+      if (!vistos[k]) { vistos[k] = 1; sugs.push(it.ordem); }
+    });
+    $("sugestoes").innerHTML = sugs.map(function (o) { return '<option value="' + esc(o) + '">'; }).join("");
+  }
+
+  function editando() {
+    return document.activeElement && document.activeElement.id === "ordem";
+  }
+
+  async function carregar() {
+    var r = await db.from("apontamentos").select("*").order("inicio", { ascending: false });
+    if (r.error) throw new Error(r.error.message);
+    itens = r.data || [];
+  }
+
+  async function atualizar(forcar) {
+    if (!forcar && editando()) return;
+    try {
+      await carregar();
+      mostrarErro("");
+      render();
+    } catch (e) {
+      mostrarErro("Sem conexão com o Supabase: " + e.message);
+    }
+  }
+
+  async function iniciarOrdem() {
+    var ordem = $("ordem").value.trim();
+    if (!ordem) { mostrarErro("Digite o nome da Ordem de Produção."); return; }
+    var nordem = norm(ordem);
+    var jaAberta = itens.find(function (it) { return !it.termino && norm(it.ordem) === nordem; });
+    if (jaAberta) {
+      mostrarErro('A ordem "' + ordem + '" já está em andamento (iniciada em ' + fmt(jaAberta.inicio) + ').');
+      return;
+    }
+    var b = $("bIniciar");
+    b.disabled = true;
+    try {
+      var r = await db.from("apontamentos").insert({ ordem: ordem, lider_inicio: lider() }).select().single();
+      if (r.error) throw new Error(r.error.message);
+      $("ordem").value = "";
+      mostrarErro("");
+      await atualizar(true);
+    } catch (e) {
+      mostrarErro(e.message);
+    } finally {
+      b.disabled = false;
+    }
+  }
+
+  async function finalizarOrdem(id, btn) {
+    btn.disabled = true;
+    try {
+      var r = await db.from("apontamentos")
+        .update({ termino: new Date().toISOString(), lider_termino: lider() })
+        .eq("id", id).is("termino", null).select();
+      if (r.error) throw new Error(r.error.message);
+      if (!r.data || !r.data.length) {
+        mostrarErro("Essa ordem já foi finalizada ou não existe mais. Atualize a página.");
+      } else {
+        mostrarErro("");
+      }
+      await atualizar(true);
+    } catch (e) {
+      mostrarErro(e.message);
+      btn.disabled = false;
+    }
+  }
+
+  function iniciarApp() {
+    atualizar(true);
+    setInterval(function () { atualizar(false); }, 15000);
+  }
+
+  $("bIniciar").addEventListener("click", iniciarOrdem);
+  $("ordem").addEventListener("keydown", function (e) { if (e.key === "Enter") iniciarOrdem(); });
+  $("andamento").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-id]");
+    if (!b) return;
+    finalizarOrdem(b.getAttribute("data-id"), b);
+  });
+})();
+</script>
+</body>
+</html>
