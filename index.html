@@ -111,7 +111,7 @@
     <h2>Pedidos de hoje <small id="nPedidos"></small></h2>
     <div class="rolagem">
       <table>
-        <thead><tr><th>Pedido</th><th>Cliente</th><th>Qtde</th><th>Início</th><th>Término</th><th></th></tr></thead>
+        <thead><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Qtde</th><th>Início</th><th>Término</th><th></th></tr></thead>
         <tbody id="pedidos"></tbody>
       </table>
     </div>
@@ -160,6 +160,7 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
   function lider() { return $("lider").value.trim(); }
   function norm(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim(); }
+  function dataBr(iso) { if (!iso) return "—"; var p = String(iso).split("-"); return p.length === 3 ? (p[2] + "/" + p[1] + "/" + p[0]) : iso; }
 
   // ---- portal de senha
   try {
@@ -218,7 +219,7 @@
   }
 
   function linhaRoteiroHeader(nome, qtdPedidos) {
-    return '<tr class="roteiro-header"><td colspan="6">' + esc(nome) + '<small>' + qtdPedidos + ' pedido' + (qtdPedidos === 1 ? "" : "s") + '</small></td></tr>';
+    return '<tr class="roteiro-header"><td colspan="7">' + esc(nome) + '<small>' + qtdPedidos + ' pedido' + (qtdPedidos === 1 ? "" : "s") + '</small></td></tr>';
   }
 
   function linhaPedido(p) {
@@ -231,7 +232,7 @@
     } else {
       acao = '<span class="pill p-fim">Finalizado</span>';
     }
-    return '<tr><td class="num">' + esc(p.pedido) + '</td><td>' + esc(p.cliente) + '</td><td class="qtd">' + (p.qtd_kit || "—") + '</td>' +
+    return '<tr><td class="num">' + esc(p.pedido) + '</td><td>' + esc(p.cliente) + '</td><td class="dh">' + esc(dataBr(p.entrega)) + '</td><td class="qtd">' + (p.qtd_kit || "—") + '</td>' +
       '<td class="dh">' + esc(fmt(ap && ap.inicio) || "—") + '</td><td class="dh">' + esc(fmt(ap && ap.termino) || "—") + '</td>' +
       '<td>' + acao + '</td></tr>';
   }
@@ -276,7 +277,7 @@
 
     $("nPedidos").textContent = pedidosHoje.length || "";
     if (!roteirosOrdem.length) {
-      $("pedidos").innerHTML = '<tr><td colspan="6" class="vazio">Nenhum pedido carregado ainda -- use "Carregar lista de pedidos do dia" embaixo.</td></tr>';
+      $("pedidos").innerHTML = '<tr><td colspan="7" class="vazio">Nenhum pedido carregado ainda -- use "Carregar lista de pedidos do dia" embaixo.</td></tr>';
     } else {
       $("pedidos").innerHTML = roteirosOrdem.map(function (nome) {
         var lista = porRoteiro[nome].slice().sort(function (a, b) { return Number(b.pedido) - Number(a.pedido); });
