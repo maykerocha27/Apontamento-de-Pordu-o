@@ -122,6 +122,10 @@
       </table>
     </div>
   </div>
+
+  <div style="text-align:center; padding:10px 0;">
+    <a href="carregar_pedidos.html" style="color:var(--dim); font-size:12px;">Carregar lista de pedidos do dia</a>
+  </div>
 </div>
 </div>
 
@@ -136,6 +140,7 @@
 
   var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   var itens = [];
+  var pedidosHoje = [];
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
   function lider() { return $("lider").value.trim(); }
@@ -230,8 +235,14 @@
       ? saidas.map(linhaHist).join("")
       : '<tr><td colspan="7" class="vazio">Nenhum apontamento registrado ainda.</td></tr>';
 
-    // sugestões: nomes já usados, sem repetir, mais recente primeiro
+    // sugestões: primeiro os pedidos de hoje (carregados da planilha do Maxiprod),
+    // depois nomes já usados antes que não estejam nessa lista
     var vistos = {}, sugs = [];
+    pedidosHoje.forEach(function (p) {
+      var texto = p.pedido + " - " + p.cliente;
+      var k = norm(texto);
+      if (!vistos[k]) { vistos[k] = 1; sugs.push(texto); }
+    });
     saidas.forEach(function (it) {
       var k = norm(it.ordem);
       if (!vistos[k]) { vistos[k] = 1; sugs.push(it.ordem); }
@@ -247,6 +258,9 @@
     var r = await db.from("apontamentos").select("*").order("inicio", { ascending: false });
     if (r.error) throw new Error(r.error.message);
     itens = r.data || [];
+
+    var rp = await db.from("pedidos_do_dia").select("pedido, entrega, cliente").order("entrega", { ascending: true });
+    if (!rp.error) pedidosHoje = rp.data || [];
   }
 
   async function atualizar(forcar) {

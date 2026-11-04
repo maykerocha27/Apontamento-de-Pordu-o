@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carregar Pedidos do Dia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root { --bg:#F3F5FC; --surface:#FFFFFF; --surface-2:#F0F3FF; --border:#E4E8F6; --text:#1C2250; --dim:#6C7499;
+          --amber:#2B3FE0; --amber-d:#1F2FB8; --red:#D6453D; --green:#1E9A5A; --sombra:0 6px 22px rgba(43,63,224,.09); color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:'Poppins','Inter',sans-serif; font-size:14px; padding:0 0 80px; }
+  .hero { background:linear-gradient(135deg,#17228A 0%,#2B3FE0 60%,#4A5CF0 100%); color:#fff; border-radius:0 0 40px 40px; padding:34px 20px 30px; box-shadow:0 14px 40px rgba(43,63,224,.25); }
+  .hero-in { max-width:720px; margin:0 auto; }
+  h1 { font-weight:700; font-size:28px; line-height:1.15; margin:0; letter-spacing:-.3px; }
+  h1 span { display:block; font-weight:400; font-size:14px; opacity:.8; margin-bottom:6px; }
+  .sub { font-size:13px; opacity:.85; margin-top:10px; max-width:520px; line-height:1.5; }
+  .wrap { max-width:720px; margin:0 auto; display:grid; gap:18px; padding:26px 20px 0; }
+  .cartao { background:var(--surface); border:1px solid var(--border); border-radius:18px; box-shadow:var(--sombra); padding:24px; }
+  .cartao h2 { margin:0 0 8px; font-size:16px; }
+  .cartao p { margin:0 0 18px; color:var(--dim); font-size:13px; line-height:1.5; }
+  .drop { border:2px dashed var(--border); border-radius:14px; padding:34px 20px; text-align:center; color:var(--dim); cursor:pointer; transition:.15s; }
+  .drop:hover, .drop.sobre { border-color:var(--amber); color:var(--amber); background:var(--surface-2); }
+  .drop input { display:none; }
+  button.p { font:inherit; font-weight:600; background:var(--amber); color:#fff; border:0; border-radius:999px; padding:12px 26px; cursor:pointer; box-shadow:0 3px 10px rgba(43,63,224,.25); }
+  button.p:hover { background:var(--amber-d); }
+  button.p:disabled { opacity:.5; cursor:not-allowed; }
+  .aviso { border-radius:12px; padding:12px 16px; font-weight:500; margin-top:14px; }
+  .aviso.erro { background:rgba(214,69,61,.1); color:var(--red); }
+  .aviso.ok { background:rgba(30,154,90,.12); color:var(--green); }
+  table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); }
+  th { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+  .rolagem { max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:12px; margin-top:10px; }
+  .acoes { display:flex; gap:12px; align-items:center; margin-top:16px; }
+  label.c { display:grid; gap:4px; font-size:11px; color:rgba(255,255,255,.8); text-transform:uppercase; letter-spacing:.08em; font-weight:500; margin-top:16px; max-width:220px; }
+  input[type=password] { font:inherit; border:1px solid var(--border); border-radius:10px; padding:9px 12px; border-color:transparent; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  #portal { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:50; }
+  #portal .caixa { background:var(--surface); border-radius:20px; box-shadow:var(--sombra); padding:32px 30px; width:min(320px,90vw); text-align:center; }
+  #portal h2 { margin:0 0 6px; font-size:18px; }
+  #portal p { margin:0 0 18px; font-size:13px; color:var(--dim); }
+  #portal input { width:100%; margin-bottom:12px; text-align:center; }
+  #portal .erro { color:var(--red); font-size:12px; min-height:16px; margin-bottom:8px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+
+<div id="portal">
+  <div class="caixa">
+    <h2>Carregar Pedidos do Dia</h2>
+    <p>Digite a senha da equipe para entrar.</p>
+    <input type="password" id="senhaInput" placeholder="senha" autocomplete="off">
+    <div class="erro" id="senhaErro"></div>
+    <button type="button" class="p" id="bEntrar" style="width:100%">Entrar</button>
+  </div>
+</div>
+
+<div id="app" hidden>
+<div class="hero"><div class="hero-in">
+  <h1><span>Kit Lanche Express · Produção</span>Carregar Pedidos do Dia</h1>
+  <div class="sub">Sobe aqui a planilha exportada do Maxiprod com os pedidos (a mesma que você já tira todo dia). Isso atualiza a lista de pedidos que a líder vê pra escolher no Apontamento de Produção.</div>
+</div></div>
+<div class="wrap">
+
+  <div class="cartao">
+    <h2>1. Escolher o arquivo</h2>
+    <p>Aceita o .xlsx exportado do Maxiprod, com as colunas Pedido nº, Entrega e Cliente (em qualquer aba da planilha).</p>
+    <label class="drop" id="drop" for="arquivo">
+      <span id="dropTexto">Arraste o arquivo aqui, ou clique pra escolher</span>
+      <input type="file" id="arquivo" accept=".xlsx,.xls">
+    </label>
+    <div id="avisoLeitura"></div>
+  </div>
+
+  <div class="cartao" id="cartaoPreview" hidden>
+    <h2>2. Conferir</h2>
+    <p id="resumoPreview"></p>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Pedido</th><th>Entrega</th><th>Cliente</th></tr></thead>
+        <tbody id="previewTbody"></tbody>
+      </table>
+    </div>
+    <div class="acoes">
+      <button type="button" class="p" id="bEnviar">Substituir a lista atual por essa</button>
+    </div>
+    <div id="avisoEnvio"></div>
+  </div>
+
+  <div class="cartao">
+    <h2>Lista atual no painel</h2>
+    <p id="resumoAtual">carregando...</p>
+  </div>
+
+</div>
+</div>
+
+<script>
+(function () {
+  // ---------------------------------------------------------------------
+  var SUPABASE_URL = "https://edntqddckxpvjxwcwygl.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_oVP3RWqrHWMuiIBcZ3bElQ_by2srg3R";
+  var SENHA_PAINEL = "Kle@2016";
+  // ---------------------------------------------------------------------
+
+  var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({"&":"&lt;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
+  function norm(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim(); }
+  function brData(iso) { if (!iso) return "—"; var p = iso.split("-"); return p.length === 3 ? (p[2] + "/" + p[1] + "/" + p[0]) : iso; }
+
+  // ---- portal de senha (mesma senha da página principal)
+  try { if (sessionStorage.getItem("apont_ok") === "1") abrirApp(); } catch (e) {}
+  function tentarEntrar() {
+    if ($("senhaInput").value === SENHA_PAINEL) {
+      try { sessionStorage.setItem("apont_ok", "1"); } catch (e) {}
+      abrirApp();
+    } else { $("senhaErro").textContent = "Senha incorreta."; }
+  }
+  function abrirApp() { $("portal").hidden = true; $("app").hidden = false; carregarResumoAtual(); }
+  $("bEntrar").addEventListener("click", tentarEntrar);
+  $("senhaInput").addEventListener("keydown", function (e) { if (e.key === "Enter") tentarEntrar(); });
+
+  // ---- leitura do Excel
+  var pedidosLidos = [];
+
+  function excelDataParaISO(v) {
+    if (v == null || v === "") return null;
+    if (typeof v === "number") {
+      var d = XLSX.SSF.parse_date_code(v);
+      if (!d) return null;
+      return d.y + "-" + String(d.m).padStart(2, "0") + "-" + String(d.d).padStart(2, "0");
+    }
+    var s = String(v).trim();
+    var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return m[3] + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+    return null;
+  }
+
+  function extrairDaAba(ws) {
+    var linhas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+    if (!linhas.length) return [];
+    var cab = linhas[0].map(norm);
+    var idxPedido = cab.findIndex(function (c) { return c.indexOf("pedido") !== -1; });
+    var idxEntrega = cab.findIndex(function (c) { return c.indexOf("entrega") !== -1; });
+    var idxCliente = cab.findIndex(function (c) { return c.indexOf("cliente") !== -1; });
+    if (idxPedido === -1 || idxEntrega === -1 || idxCliente === -1) return [];
+
+    var vistos = {}, saida = [];
+    for (var i = 1; i < linhas.length; i++) {
+      var l = linhas[i];
+      if (!l) continue;
+      var pedido = l[idxPedido];
+      if (pedido == null || String(pedido).trim() === "") continue;
+      var chave = String(pedido).trim();
+      if (vistos[chave]) continue;
+      vistos[chave] = true;
+      saida.push({ pedido: chave, entrega: excelDataParaISO(l[idxEntrega]), cliente: String(l[idxCliente] || "").trim() });
+    }
+    return saida;
+  }
+
+  function extrairPedidos(wb) {
+    var melhor = { aba: null, pedidos: [] };
+    wb.SheetNames.forEach(function (nome) {
+      var pedidos = extrairDaAba(wb.Sheets[nome]);
+      if (pedidos.length > melhor.pedidos.length) melhor = { aba: nome, pedidos: pedidos };
+    });
+    return melhor;
+  }
+
+  function mostrarAvisoLeitura(t, tipo) {
+    $("avisoLeitura").innerHTML = t ? '<div class="aviso ' + tipo + '">' + esc(t) + '</div>' : "";
+  }
+
+  function processarArquivo(file) {
+    if (!file) return;
+    mostrarAvisoLeitura("", "");
+    $("cartaoPreview").hidden = true;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        var wb = XLSX.read(e.target.result, { type: "array", cellDates: false });
+        var r = extrairPedidos(wb);
+        if (!r.pedidos.length) {
+          mostrarAvisoLeitura("Não achei as colunas Pedido / Entrega / Cliente em nenhuma aba desse arquivo.", "erro");
+          return;
+        }
+        pedidosLidos = r.pedidos.sort(function (a, b) {
+          return (a.entrega || "") < (b.entrega || "") ? -1 : (a.entrega || "") > (b.entrega || "") ? 1 : (a.pedido < b.pedido ? -1 : 1);
+        });
+        $("dropTexto").textContent = file.name;
+        $("resumoPreview").textContent = pedidosLidos.length + " pedidos encontrados na aba \"" + r.aba + "\".";
+        $("previewTbody").innerHTML = pedidosLidos.map(function (p) {
+          return "<tr><td>" + esc(p.pedido) + "</td><td>" + esc(brData(p.entrega)) + "</td><td>" + esc(p.cliente) + "</td></tr>";
+        }).join("");
+        $("cartaoPreview").hidden = false;
+        $("avisoEnvio").innerHTML = "";
+      } catch (err) {
+        mostrarAvisoLeitura("Não consegui ler esse arquivo: " + err.message, "erro");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  $("arquivo").addEventListener("change", function () { processarArquivo(this.files[0]); });
+  var drop = $("drop");
+  drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("sobre"); });
+  drop.addEventListener("dragleave", function () { drop.classList.remove("sobre"); });
+  drop.addEventListener("drop", function (e) {
+    e.preventDefault(); drop.classList.remove("sobre");
+    if (e.dataTransfer.files[0]) processarArquivo(e.dataTransfer.files[0]);
+  });
+
+  // ---- envio pro Supabase
+  async function carregarResumoAtual() {
+    try {
+      var r = await db.from("pedidos_do_dia").select("pedido, atualizado_em").order("atualizado_em", { ascending: false });
+      if (r.error) throw new Error(r.error.message);
+      var n = (r.data || []).length;
+      var ultima = n ? new Date(r.data[0].atualizado_em).toLocaleString("pt-BR") : null;
+      $("resumoAtual").textContent = n
+        ? n + " pedidos carregados atualmente (última atualização: " + ultima + ")."
+        : "Nenhum pedido carregado ainda.";
+    } catch (e) {
+      $("resumoAtual").textContent = "Não consegui checar a lista atual: " + e.message;
+    }
+  }
+
+  $("bEnviar").addEventListener("click", async function () {
+    if (!pedidosLidos.length) return;
+    var b = this;
+    b.disabled = true;
+    $("avisoEnvio").innerHTML = "";
+    try {
+      var del = await db.from("pedidos_do_dia").delete().not("id", "is", null);
+      if (del.error) throw new Error("Ao limpar a lista antiga: " + del.error.message);
+
+      var lote = pedidosLidos.map(function (p) { return { pedido: p.pedido, entrega: p.entrega, cliente: p.cliente }; });
+      var ins = await db.from("pedidos_do_dia").insert(lote);
+      if (ins.error) throw new Error("Ao gravar a lista nova: " + ins.error.message);
+
+      $("avisoEnvio").innerHTML = '<div class="aviso ok">Pronto! ' + lote.length + ' pedidos atualizados. Já aparecem no Apontamento de Produção.</div>';
+      await carregarResumoAtual();
+    } catch (e) {
+      $("avisoEnvio").innerHTML = '<div class="aviso erro">' + esc(e.message) + '</div>';
+    } finally {
+      b.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>
