@@ -28,7 +28,7 @@ from servidor_apontamento import (
 # ---------------------------------------------------------------------------
 # TROQUE AQUI a senha antes de divulgar o link pra equipe.
 USUARIO = "kle"
-SENHA = "troque-esta-senha"
+SENHA = "Kle@2016"
 # ---------------------------------------------------------------------------
 
 
