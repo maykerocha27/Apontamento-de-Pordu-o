@@ -267,7 +267,8 @@
 
     // agrupa por roteiro, preservando a ordem em que cada roteiro foi carregado
     // (pedidosHoje já vem ordenado por atualizado_em), e dentro de cada roteiro
-    // ordena os pedidos em ordem decrescente pelo número do pedido
+    // ordena 1º pela data de entrega (mais cedo primeiro; sem data vai pro fim),
+    // 2º em ordem decrescente pelo número do pedido (critério de desempate)
     var roteirosOrdem = [], porRoteiro = {};
     pedidosHoje.forEach(function (p) {
       var nome = p.roteiro || "Roteiro 1";
@@ -275,12 +276,22 @@
       porRoteiro[nome].push(p);
     });
 
+    function compararPedidos(a, b) {
+      var ea = a.entrega || null, eb = b.entrega || null;
+      if (ea !== eb) {
+        if (!ea) return 1;
+        if (!eb) return -1;
+        return ea < eb ? -1 : 1;
+      }
+      return Number(b.pedido) - Number(a.pedido);
+    }
+
     $("nPedidos").textContent = pedidosHoje.length || "";
     if (!roteirosOrdem.length) {
       $("pedidos").innerHTML = '<tr><td colspan="7" class="vazio">Nenhum pedido carregado ainda -- use "Carregar lista de pedidos do dia" embaixo.</td></tr>';
     } else {
       $("pedidos").innerHTML = roteirosOrdem.map(function (nome) {
-        var lista = porRoteiro[nome].slice().sort(function (a, b) { return Number(b.pedido) - Number(a.pedido); });
+        var lista = porRoteiro[nome].slice().sort(compararPedidos);
         return linhaRoteiroHeader(nome, lista.length) + lista.map(linhaPedido).join("");
       }).join("");
     }
