@@ -47,6 +47,14 @@
   button.fin { font:inherit; font-weight:600; background:var(--green); color:#fff; border:0; border-radius:999px; padding:10px 22px; cursor:pointer; box-shadow:0 3px 10px rgba(30,154,90,.25); }
   button.fin:hover { background:#17824A; }
   button.fin:disabled { opacity:.5; cursor:not-allowed; }
+  button.ini-tab, button.fin-tab { font:inherit; font-weight:600; font-size:12.5px; border:0; border-radius:999px; padding:7px 16px; cursor:pointer; white-space:nowrap; }
+  button.ini-tab { background:var(--amber); color:#fff; }
+  button.ini-tab:hover { background:var(--amber-d); }
+  button.fin-tab { background:var(--green); color:#fff; }
+  button.fin-tab:hover { background:#17824A; }
+  button.ini-tab:disabled, button.fin-tab:disabled { opacity:.5; cursor:not-allowed; }
+  td.num { font-weight:700; }
+  td.qtd { font-family:'JetBrains Mono',monospace; }
   .vazio { padding:26px; text-align:center; color:var(--dim); }
   .rolagem { overflow-x:auto; }
   table { width:100%; border-collapse:collapse; min-width:720px; }
@@ -57,6 +65,8 @@
   td.dh { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--dim); }
   .pill { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:4px 10px; border-radius:999px; white-space:nowrap; }
   .p-and { background:rgba(224,138,30,.14); color:#B86A0A; } .p-fim { background:rgba(30,154,90,.14); color:var(--green); }
+  tr.roteiro-header td { background:var(--surface-2); font-weight:700; font-size:12.5px; color:var(--amber); padding:10px 14px; border-bottom:1px solid var(--border); white-space:normal; }
+  tr.roteiro-header td small { font-weight:500; color:var(--dim); text-transform:none; letter-spacing:0; margin-left:8px; }
   .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
   .tile { background:var(--surface); border-radius:16px; padding:14px 18px; box-shadow:var(--sombra); border:1px solid var(--border); }
   .tile b { display:block; font-size:28px; font-weight:700; color:var(--amber); line-height:1.1; }
@@ -98,19 +108,24 @@
   <div class="tiles" id="tiles"></div>
 
   <div class="cartao">
-    <h2>Iniciar nova Ordem de Produção</h2>
-    <div class="form-inicio">
-      <label class="c2" for="ordem">Ordem de Produção
-        <input type="text" id="ordem" list="sugestoes" placeholder="nome da ordem / produto" autocomplete="off">
-        <datalist id="sugestoes"></datalist>
-      </label>
-      <button type="button" class="p" id="bIniciar">Iniciar</button>
+    <h2>Pedidos de hoje <small id="nPedidos"></small></h2>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Pedido</th><th>Cliente</th><th>Qtde</th><th>Início</th><th>Término</th><th></th></tr></thead>
+        <tbody id="pedidos"></tbody>
+      </table>
     </div>
   </div>
 
   <div class="cartao">
-    <h2>Em andamento <small id="nAnd"></small></h2>
-    <div class="andamento-lista" id="andamento"></div>
+    <h2>Ordem fora da lista</h2>
+    <div class="form-inicio">
+      <label class="c2" for="ordem">Nome da ordem
+        <input type="text" id="ordem" list="sugestoes" placeholder="quando não é um pedido da lista acima" autocomplete="off">
+        <datalist id="sugestoes"></datalist>
+      </label>
+      <button type="button" class="p" id="bIniciar">Iniciar</button>
+    </div>
   </div>
 
   <div class="cartao">
@@ -202,10 +217,23 @@
     };
   }
 
-  function linhaAndamento(it) {
-    return '<div class="oitem"><div><div class="nome">' + esc(it.ordem) + '</div><div class="meta">Iniciado em <b>' + esc(fmt(it.inicio)) + '</b>' +
-      (it.lider_inicio ? ' por <b>' + esc(it.lider_inicio) + '</b>' : '') + '</div></div>' +
-      '<button type="button" class="fin" data-id="' + esc(it.id) + '">Finalizar</button></div>';
+  function linhaRoteiroHeader(nome, qtdPedidos) {
+    return '<tr class="roteiro-header"><td colspan="6">' + esc(nome) + '<small>' + qtdPedidos + ' pedido' + (qtdPedidos === 1 ? "" : "s") + '</small></td></tr>';
+  }
+
+  function linhaPedido(p) {
+    var ap = p._apontamento;
+    var acao;
+    if (!ap) {
+      acao = '<button type="button" class="ini-tab" data-pedido="' + esc(p.pedido) + '" data-cliente="' + esc(p.cliente) + '">Iniciar</button>';
+    } else if (!ap.termino) {
+      acao = '<button type="button" class="fin-tab" data-id="' + esc(ap.id) + '">Finalizar</button>';
+    } else {
+      acao = '<span class="pill p-fim">Finalizado</span>';
+    }
+    return '<tr><td class="num">' + esc(p.pedido) + '</td><td>' + esc(p.cliente) + '</td><td class="qtd">' + (p.qtd_kit || "—") + '</td>' +
+      '<td class="dh">' + esc(fmt(ap && ap.inicio) || "—") + '</td><td class="dh">' + esc(fmt(ap && ap.termino) || "—") + '</td>' +
+      '<td>' + acao + '</td></tr>';
   }
 
   function linhaHist(it) {
@@ -225,10 +253,36 @@
       '<div class="tile"><b>' + finalizados.length + '</b><span>Finalizadas</span></div>' +
       '<div class="tile"><b>' + saidas.length + '</b><span>Total de ordens</span></div>';
 
-    $("nAnd").textContent = andamento.length || "";
-    $("andamento").innerHTML = andamento.length
-      ? andamento.map(linhaAndamento).join("")
-      : '<div class="vazio">Nenhuma ordem em andamento. Inicie uma acima.</div>';
+    // tabela de pedidos do dia, em ordem decrescente pelo número do pedido,
+    // cada linha casada com o apontamento correspondente (se já tiver um)
+    var porOrdemTexto = {};
+    saidas.forEach(function (it) {
+      var k = norm(it.ordem);
+      if (!porOrdemTexto[k] || (it.inicio || "") > (porOrdemTexto[k].inicio || "")) porOrdemTexto[k] = it;
+    });
+    pedidosHoje.forEach(function (p) {
+      p._apontamento = porOrdemTexto[norm(p.pedido + " - " + p.cliente)] || null;
+    });
+
+    // agrupa por roteiro, preservando a ordem em que cada roteiro foi carregado
+    // (pedidosHoje já vem ordenado por atualizado_em), e dentro de cada roteiro
+    // ordena os pedidos em ordem decrescente pelo número do pedido
+    var roteirosOrdem = [], porRoteiro = {};
+    pedidosHoje.forEach(function (p) {
+      var nome = p.roteiro || "Roteiro 1";
+      if (!porRoteiro[nome]) { porRoteiro[nome] = []; roteirosOrdem.push(nome); }
+      porRoteiro[nome].push(p);
+    });
+
+    $("nPedidos").textContent = pedidosHoje.length || "";
+    if (!roteirosOrdem.length) {
+      $("pedidos").innerHTML = '<tr><td colspan="6" class="vazio">Nenhum pedido carregado ainda -- use "Carregar lista de pedidos do dia" embaixo.</td></tr>';
+    } else {
+      $("pedidos").innerHTML = roteirosOrdem.map(function (nome) {
+        var lista = porRoteiro[nome].slice().sort(function (a, b) { return Number(b.pedido) - Number(a.pedido); });
+        return linhaRoteiroHeader(nome, lista.length) + lista.map(linhaPedido).join("");
+      }).join("");
+    }
 
     $("nHist").textContent = saidas.length || "";
     $("hist").innerHTML = saidas.length
@@ -259,7 +313,7 @@
     if (r.error) throw new Error(r.error.message);
     itens = r.data || [];
 
-    var rp = await db.from("pedidos_do_dia").select("pedido, entrega, cliente").order("entrega", { ascending: true });
+    var rp = await db.from("pedidos_do_dia").select("roteiro, pedido, entrega, cliente, qtd_kit, atualizado_em").order("atualizado_em", { ascending: true });
     if (!rp.error) pedidosHoje = rp.data || [];
   }
 
@@ -274,8 +328,7 @@
     }
   }
 
-  async function iniciarOrdem() {
-    var ordem = $("ordem").value.trim();
+  async function iniciar(ordem, btn, aoSucesso) {
     if (!ordem) { mostrarErro("Digite o nome da Ordem de Produção."); return; }
     var nordem = norm(ordem);
     var jaAberta = itens.find(function (it) { return !it.termino && norm(it.ordem) === nordem; });
@@ -283,19 +336,27 @@
       mostrarErro('A ordem "' + ordem + '" já está em andamento (iniciada em ' + fmt(jaAberta.inicio) + ').');
       return;
     }
-    var b = $("bIniciar");
-    b.disabled = true;
+    if (btn) btn.disabled = true;
     try {
       var r = await db.from("apontamentos").insert({ ordem: ordem, lider_inicio: lider() }).select().single();
       if (r.error) throw new Error(r.error.message);
-      $("ordem").value = "";
       mostrarErro("");
+      if (aoSucesso) aoSucesso();
       await atualizar(true);
     } catch (e) {
       mostrarErro(e.message);
     } finally {
-      b.disabled = false;
+      if (btn) btn.disabled = false;
     }
+  }
+
+  function iniciarOrdem() {
+    var ordem = $("ordem").value.trim();
+    iniciar(ordem, $("bIniciar"), function () { $("ordem").value = ""; });
+  }
+
+  function iniciarPedido(pedido, cliente, btn) {
+    iniciar(pedido + " - " + cliente, btn);
   }
 
   async function finalizarOrdem(id, btn) {
@@ -324,10 +385,11 @@
 
   $("bIniciar").addEventListener("click", iniciarOrdem);
   $("ordem").addEventListener("keydown", function (e) { if (e.key === "Enter") iniciarOrdem(); });
-  $("andamento").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-id]");
-    if (!b) return;
-    finalizarOrdem(b.getAttribute("data-id"), b);
+  $("pedidos").addEventListener("click", function (e) {
+    var bi = e.target.closest("[data-pedido]");
+    if (bi) { iniciarPedido(bi.getAttribute("data-pedido"), bi.getAttribute("data-cliente"), bi); return; }
+    var bf = e.target.closest("[data-id]");
+    if (bf) { finalizarOrdem(bf.getAttribute("data-id"), bf); return; }
   });
 })();
 </script>

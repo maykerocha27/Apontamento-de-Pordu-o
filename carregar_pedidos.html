@@ -81,19 +81,29 @@
     <p id="resumoPreview"></p>
     <div class="rolagem">
       <table>
-        <thead><tr><th>Pedido</th><th>Entrega</th><th>Cliente</th></tr></thead>
+        <thead><tr><th>Pedido</th><th>Entrega</th><th>Cliente</th><th>Qtde</th></tr></thead>
         <tbody id="previewTbody"></tbody>
       </table>
     </div>
+    <label class="c" for="nomeRoteiro" style="color:var(--dim); margin-top:18px; max-width:none;">Nome deste roteiro
+      <input type="text" id="nomeRoteiro" style="border:1px solid var(--border); box-shadow:none; max-width:260px;">
+    </label>
     <div class="acoes">
-      <button type="button" class="p" id="bEnviar">Substituir a lista atual por essa</button>
+      <button type="button" class="p" id="bEnviar">Adicionar esses pedidos</button>
     </div>
     <div id="avisoEnvio"></div>
   </div>
 
   <div class="cartao">
     <h2>Lista atual no painel</h2>
-    <p id="resumoAtual">carregando...</p>
+    <div id="resumoAtual">carregando...</div>
+  </div>
+
+  <div class="cartao">
+    <h2>Começar o dia de novo</h2>
+    <p>Apaga TODOS os roteiros e pedidos carregados até agora (use isso de manhã, antes do primeiro roteiro do dia -- não apaga o histórico de apontamentos já registrados).</p>
+    <button type="button" class="p" id="bLimpar" style="background:var(--red); box-shadow:0 3px 10px rgba(214,69,61,.25);">Limpar tudo</button>
+    <div id="avisoLimpar"></div>
   </div>
 
 </div>
@@ -109,7 +119,7 @@
 
   var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   var $ = function (id) { return document.getElementById(id); };
-  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({"&":"&lt;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
   function norm(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim(); }
   function brData(iso) { if (!iso) return "—"; var p = iso.split("-"); return p.length === 3 ? (p[2] + "/" + p[1] + "/" + p[0]) : iso; }
 
@@ -127,6 +137,13 @@
 
   // ---- leitura do Excel
   var pedidosLidos = [];
+  var roteirosAtuais = [];
+
+  function sugerirNomeRoteiro() {
+    var n = 1;
+    while (roteirosAtuais.indexOf("Roteiro " + n) !== -1) n++;
+    return "Roteiro " + n;
+  }
 
   function excelDataParaISO(v) {
     if (v == null || v === "") return null;
@@ -148,20 +165,28 @@
     var idxPedido = cab.findIndex(function (c) { return c.indexOf("pedido") !== -1; });
     var idxEntrega = cab.findIndex(function (c) { return c.indexOf("entrega") !== -1; });
     var idxCliente = cab.findIndex(function (c) { return c.indexOf("cliente") !== -1; });
+    var idxQtd = cab.findIndex(function (c) { return c.indexOf("quantidade") !== -1; });
+    var idxItem = cab.findIndex(function (c) { return c.indexOf("codigo") !== -1 || c.indexOf("item") !== -1; });
     if (idxPedido === -1 || idxEntrega === -1 || idxCliente === -1) return [];
 
-    var vistos = {}, saida = [];
+    var porPedido = {}, ordem = [];
     for (var i = 1; i < linhas.length; i++) {
       var l = linhas[i];
       if (!l) continue;
       var pedido = l[idxPedido];
       if (pedido == null || String(pedido).trim() === "") continue;
       var chave = String(pedido).trim();
-      if (vistos[chave]) continue;
-      vistos[chave] = true;
-      saida.push({ pedido: chave, entrega: excelDataParaISO(l[idxEntrega]), cliente: String(l[idxCliente] || "").trim() });
+      if (!porPedido[chave]) {
+        porPedido[chave] = { pedido: chave, entrega: excelDataParaISO(l[idxEntrega]), cliente: String(l[idxCliente] || "").trim(), qtd_kit: 0 };
+        ordem.push(chave);
+      }
+      // soma só as linhas de item cujo código começa com "KIT" -- as linhas de
+      // embalagem (EMB...) e bebida avulsa (BEB...) não entram na quantidade
+      var item = idxItem !== -1 ? String(l[idxItem] || "") : "";
+      var qtd = idxQtd !== -1 ? (Number(l[idxQtd]) || 0) : 0;
+      if (norm(item).indexOf("kit") === 0) porPedido[chave].qtd_kit += qtd;
     }
-    return saida;
+    return ordem.map(function (k) { return porPedido[k]; });
   }
 
   function extrairPedidos(wb) {
@@ -196,8 +221,9 @@
         $("dropTexto").textContent = file.name;
         $("resumoPreview").textContent = pedidosLidos.length + " pedidos encontrados na aba \"" + r.aba + "\".";
         $("previewTbody").innerHTML = pedidosLidos.map(function (p) {
-          return "<tr><td>" + esc(p.pedido) + "</td><td>" + esc(brData(p.entrega)) + "</td><td>" + esc(p.cliente) + "</td></tr>";
+          return "<tr><td>" + esc(p.pedido) + "</td><td>" + esc(brData(p.entrega)) + "</td><td>" + esc(p.cliente) + "</td><td>" + esc(p.qtd_kit) + "</td></tr>";
         }).join("");
+        $("nomeRoteiro").value = sugerirNomeRoteiro();
         $("cartaoPreview").hidden = false;
         $("avisoEnvio").innerHTML = "";
       } catch (err) {
@@ -219,13 +245,23 @@
   // ---- envio pro Supabase
   async function carregarResumoAtual() {
     try {
-      var r = await db.from("pedidos_do_dia").select("pedido, atualizado_em").order("atualizado_em", { ascending: false });
+      var r = await db.from("pedidos_do_dia").select("roteiro, pedido, atualizado_em").order("atualizado_em", { ascending: true });
       if (r.error) throw new Error(r.error.message);
-      var n = (r.data || []).length;
-      var ultima = n ? new Date(r.data[0].atualizado_em).toLocaleString("pt-BR") : null;
-      $("resumoAtual").textContent = n
-        ? n + " pedidos carregados atualmente (última atualização: " + ultima + ")."
-        : "Nenhum pedido carregado ainda.";
+      var dados = r.data || [];
+      var porRoteiro = {}, ordemRoteiros = [];
+      dados.forEach(function (p) {
+        var k = p.roteiro || "Roteiro 1";
+        if (!porRoteiro[k]) { porRoteiro[k] = 0; ordemRoteiros.push(k); }
+        porRoteiro[k]++;
+      });
+      roteirosAtuais = ordemRoteiros;
+      if (!dados.length) {
+        $("resumoAtual").textContent = "Nenhum pedido carregado ainda.";
+        return;
+      }
+      $("resumoAtual").innerHTML = ordemRoteiros.map(function (k) {
+        return '<div>' + esc(k) + ': <b>' + porRoteiro[k] + '</b> pedido' + (porRoteiro[k] > 1 ? "s" : "") + '</div>';
+      }).join("");
     } catch (e) {
       $("resumoAtual").textContent = "Não consegui checar a lista atual: " + e.message;
     }
@@ -233,21 +269,36 @@
 
   $("bEnviar").addEventListener("click", async function () {
     if (!pedidosLidos.length) return;
+    var roteiro = $("nomeRoteiro").value.trim() || sugerirNomeRoteiro();
     var b = this;
     b.disabled = true;
     $("avisoEnvio").innerHTML = "";
     try {
-      var del = await db.from("pedidos_do_dia").delete().not("id", "is", null);
-      if (del.error) throw new Error("Ao limpar a lista antiga: " + del.error.message);
-
-      var lote = pedidosLidos.map(function (p) { return { pedido: p.pedido, entrega: p.entrega, cliente: p.cliente }; });
+      var lote = pedidosLidos.map(function (p) { return { roteiro: roteiro, pedido: p.pedido, entrega: p.entrega, cliente: p.cliente, qtd_kit: p.qtd_kit }; });
       var ins = await db.from("pedidos_do_dia").insert(lote);
-      if (ins.error) throw new Error("Ao gravar a lista nova: " + ins.error.message);
+      if (ins.error) throw new Error("Ao gravar a lista: " + ins.error.message);
 
-      $("avisoEnvio").innerHTML = '<div class="aviso ok">Pronto! ' + lote.length + ' pedidos atualizados. Já aparecem no Apontamento de Produção.</div>';
+      $("avisoEnvio").innerHTML = '<div class="aviso ok">Pronto! ' + lote.length + ' pedidos adicionados como "' + esc(roteiro) + '". Já aparecem no Apontamento de Produção.</div>';
       await carregarResumoAtual();
     } catch (e) {
       $("avisoEnvio").innerHTML = '<div class="aviso erro">' + esc(e.message) + '</div>';
+    } finally {
+      b.disabled = false;
+    }
+  });
+
+  $("bLimpar").addEventListener("click", async function () {
+    if (!confirm("Tem certeza? Isso apaga todos os roteiros e pedidos carregados até agora (o histórico de apontamentos continua intacto).")) return;
+    var b = this;
+    b.disabled = true;
+    $("avisoLimpar").innerHTML = "";
+    try {
+      var del = await db.from("pedidos_do_dia").delete().not("id", "is", null);
+      if (del.error) throw new Error(del.error.message);
+      $("avisoLimpar").innerHTML = '<div class="aviso ok">Lista zerada. Pode carregar o primeiro roteiro do dia.</div>';
+      await carregarResumoAtual();
+    } catch (e) {
+      $("avisoLimpar").innerHTML = '<div class="aviso erro">' + esc(e.message) + '</div>';
     } finally {
       b.disabled = false;
     }
