@@ -256,8 +256,11 @@
 
   function render() {
     var saidas = itens.map(saida);
-    var andamento = saidas.filter(function (it) { return it.status === "Em andamento"; });
-    var finalizados = saidas.filter(function (it) { return it.status === "Finalizado"; });
+    // os cards de cima (Em andamento/Finalizadas/Total de ordens) são do dia --
+    // sem isso ficavam somando o histórico inteiro desde sempre, nunca zerando
+    var saidasHoje = saidas.filter(function (it) { return ehHoje(it.inicio); });
+    var andamento = saidasHoje.filter(function (it) { return it.status === "Em andamento"; });
+    var finalizados = saidasHoje.filter(function (it) { return it.status === "Finalizado"; });
 
     // casa cada pedido de hoje com o apontamento correspondente (se já tiver um) --
     // só considera apontamentos de HOJE, senão um pedido novo que reusa o mesmo
@@ -285,7 +288,7 @@
     $("tiles").innerHTML =
       '<div class="tile"><b>' + andamento.length + '</b><span>Em andamento</span></div>' +
       '<div class="tile"><b>' + finalizados.length + '</b><span>Finalizadas</span></div>' +
-      '<div class="tile"><b>' + saidas.length + '</b><span>Total de ordens</span></div>' +
+      '<div class="tile"><b>' + saidasHoje.length + '</b><span>Total de ordens</span></div>' +
       '<div class="tile"><b class="laranja">' + fmtNum(kitsRoteiro) + '</b><span>Kits do Roteiro</span></div>' +
       '<div class="tile"><b class="verde">' + fmtNum(kitsProduzido) + '</b><span>Kits Produzidos</span></div>' +
       '<div class="tile"><b>' + fmtNum(pedidosHoje.length) + '</b><span>Qtde de Ordens</span></div>';
