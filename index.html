@@ -72,6 +72,7 @@
   .tile b { display:block; font-size:28px; font-weight:700; color:var(--amber); line-height:1.1; }
   .tile b.laranja { color:var(--warn); }
   .tile b.verde { color:var(--green); }
+  .tile b.vermelho { color:var(--red); }
   .tile span { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; font-weight:500; }
   [hidden] { display:none !important; }
   #portal { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:50; }
@@ -277,13 +278,14 @@
     });
 
     // totais de kits: Roteiro = soma de todos os pedidos de hoje; Produzido =
-    // soma só dos pedidos já finalizados
+    // soma só dos pedidos já finalizados; Faltam = o que resta dos dois
     var kitsRoteiro = 0, kitsProduzido = 0;
     pedidosHoje.forEach(function (p) {
       var q = Number(p.qtd_kit) || 0;
       kitsRoteiro += q;
       if (p._apontamento && p._apontamento.termino) kitsProduzido += q;
     });
+    var kitsFaltam = Math.max(0, kitsRoteiro - kitsProduzido);
 
     $("tiles").innerHTML =
       '<div class="tile"><b>' + andamento.length + '</b><span>Em andamento</span></div>' +
@@ -291,6 +293,7 @@
       '<div class="tile"><b>' + saidasHoje.length + '</b><span>Total de ordens</span></div>' +
       '<div class="tile"><b class="laranja">' + fmtNum(kitsRoteiro) + '</b><span>Kits do Roteiro</span></div>' +
       '<div class="tile"><b class="verde">' + fmtNum(kitsProduzido) + '</b><span>Kits Produzidos</span></div>' +
+      '<div class="tile"><b class="vermelho">' + fmtNum(kitsFaltam) + '</b><span>Kits Faltando</span></div>' +
       '<div class="tile"><b>' + fmtNum(pedidosHoje.length) + '</b><span>Qtde de Ordens</span></div>';
 
     // agrupa por roteiro, preservando a ordem em que cada roteiro foi carregado
