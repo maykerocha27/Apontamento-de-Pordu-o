@@ -53,6 +53,9 @@
   button.fin-tab { background:var(--green); color:#fff; }
   button.fin-tab:hover { background:#17824A; }
   button.ini-tab:disabled, button.fin-tab:disabled { opacity:.5; cursor:not-allowed; }
+  button.x-remover { font:inherit; font-weight:700; font-size:14px; line-height:1; border:1px solid var(--border); background:#fff; color:var(--dim); border-radius:999px; width:26px; height:26px; cursor:pointer; margin-left:8px; vertical-align:middle; }
+  button.x-remover:hover { background:rgba(214,69,61,.1); color:var(--red); border-color:rgba(214,69,61,.3); }
+  button.x-remover:disabled { opacity:.5; cursor:not-allowed; }
   td.num { font-weight:700; }
   td.qtd { font-family:'JetBrains Mono',monospace; }
   .vazio { padding:26px; text-align:center; color:var(--dim); }
@@ -235,9 +238,10 @@
     } else {
       acao = '<span class="pill p-fim">Finalizado</span>';
     }
+    var remover = '<button type="button" class="x-remover" data-remover="' + esc(p.id) + '" title="Remover esse pedido da lista de hoje">×</button>';
     return '<tr><td class="num">' + esc(p.pedido) + '</td><td>' + esc(p.cliente) + '</td><td class="dh">' + esc(dataBr(p.entrega)) + '</td><td class="qtd">' + (p.qtd_kit != null ? p.qtd_kit : "—") + '</td>' +
       '<td class="dh">' + esc(fmt(ap && ap.inicio) || "—") + '</td><td class="dh">' + esc(fmt(ap && ap.termino) || "—") + '</td>' +
-      '<td>' + acao + '</td></tr>';
+      '<td>' + acao + remover + '</td></tr>';
   }
 
   function linhaHist(it) {
@@ -361,7 +365,7 @@
     if (r.error) throw new Error(r.error.message);
     itens = r.data || [];
 
-    var rp = await db.from("pedidos_do_dia").select("roteiro, pedido, entrega, cliente, qtd_kit, atualizado_em").order("atualizado_em", { ascending: true });
+    var rp = await db.from("pedidos_do_dia").select("id, roteiro, pedido, entrega, cliente, qtd_kit, atualizado_em").order("atualizado_em", { ascending: true });
     if (!rp.error) pedidosHoje = rp.data || [];
   }
 
@@ -426,6 +430,20 @@
     }
   }
 
+  async function removerPedido(id, btn) {
+    if (!confirm("Remover esse pedido da lista de hoje? Isso não apaga nenhum apontamento já registrado, só tira ele da lista de pedidos.")) return;
+    btn.disabled = true;
+    try {
+      var r = await db.from("pedidos_do_dia").delete().eq("id", id);
+      if (r.error) throw new Error(r.error.message);
+      mostrarErro("");
+      await atualizar(true);
+    } catch (e) {
+      mostrarErro(e.message);
+      btn.disabled = false;
+    }
+  }
+
   function iniciarApp() {
     atualizar(true);
     setInterval(function () { atualizar(false); }, 15000);
@@ -434,6 +452,8 @@
   $("bIniciar").addEventListener("click", iniciarOrdem);
   $("ordem").addEventListener("keydown", function (e) { if (e.key === "Enter") iniciarOrdem(); });
   $("pedidos").addEventListener("click", function (e) {
+    var br = e.target.closest("[data-remover]");
+    if (br) { removerPedido(br.getAttribute("data-remover"), br); return; }
     var bi = e.target.closest("[data-pedido]");
     if (bi) { iniciarPedido(bi.getAttribute("data-pedido"), bi.getAttribute("data-cliente"), bi); return; }
     var bf = e.target.closest("[data-id]");
