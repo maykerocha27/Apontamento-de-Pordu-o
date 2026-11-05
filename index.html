@@ -70,6 +70,8 @@
   .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
   .tile { background:var(--surface); border-radius:16px; padding:14px 18px; box-shadow:var(--sombra); border:1px solid var(--border); }
   .tile b { display:block; font-size:28px; font-weight:700; color:var(--amber); line-height:1.1; }
+  .tile b.laranja { color:var(--warn); }
+  .tile b.verde { color:var(--green); }
   .tile span { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; font-weight:500; }
   [hidden] { display:none !important; }
   #portal { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:50; }
@@ -246,14 +248,24 @@
 
   function fmtNum(n) { return Number(n || 0).toLocaleString("pt-BR"); }
 
+  function ehHoje(iso) {
+    if (!iso) return false;
+    var d = new Date(iso), h = new Date();
+    return d.getFullYear() === h.getFullYear() && d.getMonth() === h.getMonth() && d.getDate() === h.getDate();
+  }
+
   function render() {
     var saidas = itens.map(saida);
     var andamento = saidas.filter(function (it) { return it.status === "Em andamento"; });
     var finalizados = saidas.filter(function (it) { return it.status === "Finalizado"; });
 
-    // casa cada pedido de hoje com o apontamento correspondente (se já tiver um)
+    // casa cada pedido de hoje com o apontamento correspondente (se já tiver um) --
+    // só considera apontamentos de HOJE, senão um pedido novo que reusa o mesmo
+    // número de um pedido de um dia anterior (já finalizado naquele dia) ia
+    // aparecer errado como "já finalizado" sem ninguém ter mexido nele hoje
     var porOrdemTexto = {};
     saidas.forEach(function (it) {
+      if (!ehHoje(it.inicio)) return;
       var k = norm(it.ordem);
       if (!porOrdemTexto[k] || (it.inicio || "") > (porOrdemTexto[k].inicio || "")) porOrdemTexto[k] = it;
     });
@@ -274,8 +286,8 @@
       '<div class="tile"><b>' + andamento.length + '</b><span>Em andamento</span></div>' +
       '<div class="tile"><b>' + finalizados.length + '</b><span>Finalizadas</span></div>' +
       '<div class="tile"><b>' + saidas.length + '</b><span>Total de ordens</span></div>' +
-      '<div class="tile"><b>' + fmtNum(kitsRoteiro) + '</b><span>Kits do Roteiro</span></div>' +
-      '<div class="tile"><b>' + fmtNum(kitsProduzido) + '</b><span>Kits Produzidos</span></div>' +
+      '<div class="tile"><b class="laranja">' + fmtNum(kitsRoteiro) + '</b><span>Kits do Roteiro</span></div>' +
+      '<div class="tile"><b class="verde">' + fmtNum(kitsProduzido) + '</b><span>Kits Produzidos</span></div>' +
       '<div class="tile"><b>' + fmtNum(pedidosHoje.length) + '</b><span>Qtde de Ordens</span></div>';
 
     // agrupa por roteiro, preservando a ordem em que cada roteiro foi carregado
