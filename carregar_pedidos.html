@@ -180,11 +180,15 @@
         porPedido[chave] = { pedido: chave, entrega: excelDataParaISO(l[idxEntrega]), cliente: String(l[idxCliente] || "").trim(), qtd_kit: 0 };
         ordem.push(chave);
       }
-      // soma só as linhas de item cujo código começa com "KIT" -- as linhas de
-      // embalagem (EMB...) e bebida avulsa (BEB...) não entram na quantidade
+      // se a aba tem coluna de código do item (ex: Planilha1, uma linha por item),
+      // soma só as linhas cujo código começa com "KIT" -- embalagem (EMB...) e
+      // bebida avulsa (BEB...) não entram na quantidade. Se a aba NÃO tem essa
+      // coluna (ex: Tabela de pedidos, já é um resumo por pedido), soma todas as
+      // linhas da "Quantidade de Kit" direto -- às vezes um pedido vem em mais de
+      // uma linha ali (ex: 190 + 20), e as duas entram na soma.
       var item = idxItem !== -1 ? String(l[idxItem] || "") : "";
       var qtd = idxQtd !== -1 ? (Number(l[idxQtd]) || 0) : 0;
-      if (norm(item).indexOf("kit") === 0) porPedido[chave].qtd_kit += qtd;
+      if (idxItem === -1 || norm(item).indexOf("kit") === 0) porPedido[chave].qtd_kit += qtd;
     }
     return ordem.map(function (k) { return porPedido[k]; });
   }
