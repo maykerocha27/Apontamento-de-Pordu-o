@@ -36,6 +36,8 @@
   th { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
   .rolagem { max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:12px; margin-top:10px; }
   .acoes { display:flex; gap:12px; align-items:center; margin-top:16px; }
+  .form-add { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+  input[type=date], input[type=number] { font:inherit; }
   label.c { display:grid; gap:4px; font-size:11px; color:rgba(255,255,255,.8); text-transform:uppercase; letter-spacing:.08em; font-weight:500; margin-top:16px; max-width:220px; }
   input[type=password] { font:inherit; border:1px solid var(--border); border-radius:10px; padding:9px 12px; border-color:transparent; box-shadow:0 2px 8px rgba(0,0,0,.12); }
   #portal { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:50; }
@@ -77,7 +79,7 @@
   </div>
 
   <div class="cartao" id="cartaoPreview" hidden>
-    <h2>2. Conferir</h2>
+    <h2>Conferir os pedidos lidos</h2>
     <p id="resumoPreview"></p>
     <div class="rolagem">
       <table>
@@ -92,6 +94,29 @@
       <button type="button" class="p" id="bEnviar">Adicionar esses pedidos</button>
     </div>
     <div id="avisoEnvio"></div>
+  </div>
+
+  <div class="cartao">
+    <h2>2. Adicionais</h2>
+    <p>Pra lançar um pedido avulso que chegou fora da planilha, sem precisar subir arquivo nenhum (ex: um pedido novo agora pra entregar amanhã). Ele entra na lista como roteiro "Adicionais".</p>
+    <div class="form-add">
+      <label class="c" for="aPedido" style="color:var(--dim); max-width:none;">Número do pedido
+        <input type="text" id="aPedido" style="border:1px solid var(--border); box-shadow:none; width:100%;" placeholder="ex: 6920">
+      </label>
+      <label class="c" for="aCliente" style="color:var(--dim); max-width:none;">Cliente
+        <input type="text" id="aCliente" style="border:1px solid var(--border); box-shadow:none; width:100%;" placeholder="nome do cliente">
+      </label>
+      <label class="c" for="aEntrega" style="color:var(--dim); max-width:none;">Data de entrega
+        <input type="date" id="aEntrega" style="border:1px solid var(--border); box-shadow:none; width:100%;">
+      </label>
+      <label class="c" for="aQtd" style="color:var(--dim); max-width:none;">Quantidade de kit (opcional)
+        <input type="number" id="aQtd" min="0" style="border:1px solid var(--border); box-shadow:none; width:100%;" placeholder="0">
+      </label>
+    </div>
+    <div class="acoes">
+      <button type="button" class="p" id="bAdicionarAvulso">Adicionar pedido</button>
+    </div>
+    <div id="avisoAvulso"></div>
   </div>
 
   <div class="cartao">
@@ -131,7 +156,16 @@
       abrirApp();
     } else { $("senhaErro").textContent = "Senha incorreta."; }
   }
-  function abrirApp() { $("portal").hidden = true; $("app").hidden = false; carregarResumoAtual(); }
+  function abrirApp() {
+    $("portal").hidden = true; $("app").hidden = false; carregarResumoAtual();
+    if (!$("aEntrega").value) $("aEntrega").value = amanhaISO();
+  }
+
+  function amanhaISO() {
+    var d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
   $("bEntrar").addEventListener("click", tentarEntrar);
   $("senhaInput").addEventListener("keydown", function (e) { if (e.key === "Enter") tentarEntrar(); });
 
@@ -286,6 +320,31 @@
       await carregarResumoAtual();
     } catch (e) {
       $("avisoEnvio").innerHTML = '<div class="aviso erro">' + esc(e.message) + '</div>';
+    } finally {
+      b.disabled = false;
+    }
+  });
+
+  $("bAdicionarAvulso").addEventListener("click", async function () {
+    var pedido = $("aPedido").value.trim();
+    var cliente = $("aCliente").value.trim();
+    var entrega = $("aEntrega").value || null;
+    var qtdTxt = $("aQtd").value.trim();
+    var qtd_kit = qtdTxt === "" ? null : (Number(qtdTxt) || 0);
+    $("avisoAvulso").innerHTML = "";
+    if (!pedido) { $("avisoAvulso").innerHTML = '<div class="aviso erro">Preenche o número do pedido.</div>'; return; }
+    if (!cliente) { $("avisoAvulso").innerHTML = '<div class="aviso erro">Preenche o cliente.</div>'; return; }
+    var b = this;
+    b.disabled = true;
+    try {
+      var ins = await db.from("pedidos_do_dia").insert({ roteiro: "Adicionais", pedido: pedido, entrega: entrega, cliente: cliente, qtd_kit: qtd_kit });
+      if (ins.error) throw new Error(ins.error.message);
+      $("avisoAvulso").innerHTML = '<div class="aviso ok">Pedido ' + esc(pedido) + ' adicionado em "Adicionais". Já aparece no Apontamento de Produção.</div>';
+      $("aPedido").value = ""; $("aCliente").value = ""; $("aQtd").value = "";
+      $("aEntrega").value = amanhaISO();
+      await carregarResumoAtual();
+    } catch (e) {
+      $("avisoAvulso").innerHTML = '<div class="aviso erro">' + esc(e.message) + '</div>';
     } finally {
       b.disabled = false;
     }
