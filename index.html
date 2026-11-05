@@ -288,13 +288,13 @@
     var kitsFaltam = Math.max(0, kitsRoteiro - kitsProduzido);
 
     $("tiles").innerHTML =
+      '<div class="tile"><b>' + fmtNum(pedidosHoje.length) + '</b><span>Pedidos do Dia</span></div>' +
       '<div class="tile"><b>' + andamento.length + '</b><span>Em andamento</span></div>' +
       '<div class="tile"><b>' + finalizados.length + '</b><span>Finalizadas</span></div>' +
-      '<div class="tile"><b>' + saidasHoje.length + '</b><span>Total de ordens</span></div>' +
+      '<div class="tile"><b>' + saidasHoje.length + '</b><span>Ordens Apontadas</span></div>' +
       '<div class="tile"><b class="laranja">' + fmtNum(kitsRoteiro) + '</b><span>Kits do Roteiro</span></div>' +
       '<div class="tile"><b class="verde">' + fmtNum(kitsProduzido) + '</b><span>Kits Produzidos</span></div>' +
-      '<div class="tile"><b class="vermelho">' + fmtNum(kitsFaltam) + '</b><span>Kits Faltando</span></div>' +
-      '<div class="tile"><b>' + fmtNum(pedidosHoje.length) + '</b><span>Qtde de Ordens</span></div>';
+      '<div class="tile"><b class="vermelho">' + fmtNum(kitsFaltam) + '</b><span>Kits Faltando</span></div>';
 
     // agrupa por roteiro, preservando a ordem em que cada roteiro foi carregado
     // (pedidosHoje já vem ordenado por atualizado_em), e dentro de cada roteiro
