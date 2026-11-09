@@ -10,6 +10,7 @@
 <style>
   :root { --bg:#F3F5FC; --surface:#FFFFFF; --surface-2:#F0F3FF; --border:#E4E8F6; --text:#1C2250; --dim:#6C7499;
           --amber:#2B3FE0; --amber-d:#1F2FB8; --warn:#E08A1E; --red:#D6453D; --green:#1E9A5A; --blue:#2B3FE0;
+          --roxo-escuro:#5B21A8; --roxo-claro:#A974E8;
           --sombra:0 6px 22px rgba(43,63,224,.09); color-scheme: light; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font-family:'Poppins','Inter',sans-serif; font-size:14px; padding:0 0 80px; }
@@ -76,6 +77,8 @@
   .tile b.laranja { color:var(--warn); }
   .tile b.verde { color:var(--green); }
   .tile b.vermelho { color:var(--red); }
+  .tile b.roxo-escuro { color:var(--roxo-escuro); }
+  .tile b.roxo-claro { color:var(--roxo-claro); }
   .tile span { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; font-weight:500; }
   [hidden] { display:none !important; }
   #portal { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:50; }
@@ -313,8 +316,8 @@
       '<div class="tile"><b>' + andamento.length + '</b><span>Em andamento</span></div>' +
       '<div class="tile"><b>' + finalizados.length + '</b><span>Finalizadas</span></div>' +
       '<div class="tile"><b>' + saidasHoje.length + '</b><span>Ordens Apontadas</span></div>' +
-      '<div class="tile"><b>' + duracaoTxt(horasEfetivasMin) + '</b><span>Horas Efetivas</span></div>' +
-      '<div class="tile"><b class="laranja">' + duracaoTxt(horasParadasMin) + '</b><span>Horas Paradas</span></div>' +
+      '<div class="tile"><b class="roxo-escuro">' + duracaoTxt(horasEfetivasMin) + '</b><span>Horas Efetivas</span></div>' +
+      '<div class="tile"><b class="roxo-claro">' + duracaoTxt(horasParadasMin) + '</b><span>Horas Paradas</span></div>' +
       '<div class="tile"><b class="laranja">' + fmtNum(kitsRoteiro) + '</b><span>Kits do Roteiro</span></div>' +
       '<div class="tile"><b class="verde">' + fmtNum(kitsProduzido) + '</b><span>Kits Produzidos</span></div>' +
       '<div class="tile"><b class="vermelho">' + fmtNum(kitsFaltam) + '</b><span>Kits Faltando</span></div>';
