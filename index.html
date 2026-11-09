@@ -267,6 +267,23 @@
     var andamento = saidasHoje.filter(function (it) { return it.status === "Em andamento"; });
     var finalizados = saidasHoje.filter(function (it) { return it.status === "Finalizado"; });
 
+    // Horas Efetivas: soma a Duração (coluna do Histórico) de todas as ordens
+    // de hoje já finalizadas -- tempo total efetivamente trabalhado no dia.
+    var horasEfetivasMin = finalizados.reduce(function (soma, it) { return soma + (it.duracao_min || 0); }, 0);
+
+    // Horas Paradas: desde o início da primeira ordem de hoje até agora, qual
+    // parte desse tempo NÃO foi produção (Horas Efetivas) -- ou seja, o tempo
+    // parado entre ordens (ou esperando a próxima começar).
+    var horasParadasMin = 0;
+    var primeiraOrdemInicio = null;
+    saidasHoje.forEach(function (it) {
+      if (!primeiraOrdemInicio || it.inicio < primeiraOrdemInicio) primeiraOrdemInicio = it.inicio;
+    });
+    if (primeiraOrdemInicio) {
+      var tempoTotalMin = Math.max(0, Math.round((new Date() - new Date(primeiraOrdemInicio)) / 60000));
+      horasParadasMin = Math.max(0, tempoTotalMin - horasEfetivasMin);
+    }
+
     // casa cada pedido de hoje com o apontamento correspondente (se já tiver um) --
     // só considera apontamentos de HOJE, senão um pedido novo que reusa o mesmo
     // número de um pedido de um dia anterior (já finalizado naquele dia) ia
@@ -296,6 +313,8 @@
       '<div class="tile"><b>' + andamento.length + '</b><span>Em andamento</span></div>' +
       '<div class="tile"><b>' + finalizados.length + '</b><span>Finalizadas</span></div>' +
       '<div class="tile"><b>' + saidasHoje.length + '</b><span>Ordens Apontadas</span></div>' +
+      '<div class="tile"><b>' + duracaoTxt(horasEfetivasMin) + '</b><span>Horas Efetivas</span></div>' +
+      '<div class="tile"><b class="laranja">' + duracaoTxt(horasParadasMin) + '</b><span>Horas Paradas</span></div>' +
       '<div class="tile"><b class="laranja">' + fmtNum(kitsRoteiro) + '</b><span>Kits do Roteiro</span></div>' +
       '<div class="tile"><b class="verde">' + fmtNum(kitsProduzido) + '</b><span>Kits Produzidos</span></div>' +
       '<div class="tile"><b class="vermelho">' + fmtNum(kitsFaltam) + '</b><span>Kits Faltando</span></div>';
