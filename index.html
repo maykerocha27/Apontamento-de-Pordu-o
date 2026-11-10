@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root { --bg:#F3F5FC; --surface:#FFFFFF; --surface-2:#F0F3FF; --border:#E4E8F6; --text:#1C2250; --dim:#6C7499;
           --amber:#2B3FE0; --amber-d:#1F2FB8; --warn:#E08A1E; --red:#D6453D; --green:#1E9A5A; --blue:#2B3FE0;
@@ -23,7 +24,7 @@
   h1 span { display:block; font-weight:400; font-size:15px; opacity:.8; margin-bottom:6px; letter-spacing:.02em; }
   .sub { font-size:13px; opacity:.8; margin-top:10px; max-width:520px; line-height:1.5; }
   label.c { display:grid; gap:4px; font-size:11px; color:rgba(255,255,255,.8); text-transform:uppercase; letter-spacing:.08em; font-weight:500; }
-  input[type=text], input[type=password] { font:inherit; color:var(--text); background:#fff; border:1px solid var(--border); border-radius:10px; padding:9px 12px; min-width:0; }
+  input[type=text], input[type=password], input[type=date], input[type=number] { font:inherit; color:var(--text); background:#fff; border:1px solid var(--border); border-radius:10px; padding:9px 12px; min-width:0; }
   .hero input[type=text] { border-color:transparent; box-shadow:0 2px 8px rgba(0,0,0,.12); }
   :focus-visible { outline:2px solid var(--amber); outline-offset:2px; }
   .hero :focus-visible { outline-color:#fff; }
@@ -34,7 +35,7 @@
   .cartao h2 small { font-size:12px; font-weight:500; color:var(--dim); background:var(--surface-2); border-radius:999px; padding:2px 10px; }
   .form-inicio { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
   .form-inicio label.c2 { display:grid; gap:4px; font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; font-weight:500; flex:1; min-width:220px; }
-  .form-inicio input[type=text] { width:100%; border:1px solid var(--border); border-radius:10px; padding:10px 12px; font:inherit; }
+  .form-inicio input[type=text], .form-inicio input[type=date], .form-inicio input[type=number] { width:100%; border:1px solid var(--border); border-radius:10px; padding:10px 12px; font:inherit; }
   button.p { font:inherit; font-weight:600; background:var(--amber); color:#fff; border:0; border-radius:999px; padding:12px 26px; cursor:pointer; box-shadow:0 3px 10px rgba(43,63,224,.25); white-space:nowrap; }
   button.p:hover { background:var(--amber-d); }
   button.p:disabled { opacity:.5; cursor:not-allowed; }
@@ -139,12 +140,37 @@
 
   <div class="cartao">
     <h2>Histórico <small id="nHist"></small></h2>
+    <div class="form-inicio" style="margin-bottom:16px;">
+      <label class="c2" for="expDe">Exportar de
+        <input type="date" id="expDe">
+      </label>
+      <label class="c2" for="expAte">Até
+        <input type="date" id="expAte">
+      </label>
+      <button type="button" class="p" id="bExportar">Exportar para Excel</button>
+    </div>
+    <div id="exportStatus" style="font-size:12px; color:var(--dim); margin:-8px 0 12px;"></div>
     <div class="rolagem">
       <table>
         <thead><tr><th>Ordem de Produção</th><th>Início</th><th>Líder (início)</th><th>Término</th><th>Líder (término)</th><th>Duração</th><th>Status</th></tr></thead>
         <tbody id="hist"></tbody>
       </table>
     </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Fechar o Dia</h2>
+    <div id="fechamentoInfo" style="font-size:12px; color:var(--dim); margin-bottom:14px;"></div>
+    <div class="form-inicio">
+      <label class="c2" for="fpBatidas">Batidas Flowpack
+        <input type="number" id="fpBatidas" min="0" step="1" placeholder="0">
+      </label>
+      <label class="c2" for="fpSucos">Qualidade -- Sucos Mordidos
+        <input type="number" id="fpSucos" min="0" step="1" placeholder="0">
+      </label>
+      <button type="button" class="p" id="bFecharDia">Fechar o Dia</button>
+    </div>
+    <div id="fecharStatus" style="font-size:12px; color:var(--dim); margin-top:10px;"></div>
   </div>
 
   <div style="text-align:center; padding:10px 0;">
@@ -165,6 +191,7 @@
   var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   var itens = [];
   var pedidosHoje = [];
+  var fechamentoHoje = null;
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
   function lider() { return $("lider").value.trim(); }
@@ -187,6 +214,8 @@
     $("portal").hidden = true;
     $("app").hidden = false;
     try { $("lider").value = localStorage.getItem("apont_lider") || ""; } catch (e) {}
+    if (!$("expDe").value) $("expDe").value = hojeISODate();
+    if (!$("expAte").value) $("expAte").value = hojeISODate();
     iniciarApp();
   }
   $("bEntrar").addEventListener("click", tentarEntrar);
@@ -213,6 +242,104 @@
     return h ? (h + "h" + (m ? pad(m) + "min" : "")) : (m + " min");
   }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
+
+  function hojeISODate() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+
+  function setExportStatus(msg, erro) {
+    var el = $("exportStatus");
+    el.textContent = msg || "";
+    el.style.color = erro ? "var(--red)" : "var(--dim)";
+  }
+
+  function setFecharStatus(msg, erro) {
+    var el = $("fecharStatus");
+    el.textContent = msg || "";
+    el.style.color = erro ? "var(--red)" : "var(--dim)";
+  }
+
+  function renderFechamento() {
+    if (fechamentoHoje) {
+      $("fechamentoInfo").textContent = "Dia já fechado às " + (fmt(fechamentoHoje.fechado_em) || "—") +
+        (fechamentoHoje.fechado_por ? " por " + fechamentoHoje.fechado_por : "") +
+        " -- Batidas Flowpack: " + fmtNum(fechamentoHoje.batidas_flowpack) +
+        " · Qualidade (sucos mordidos): " + fmtNum(fechamentoHoje.sucos_mordidos) +
+        ". Fechar de novo substitui esse registro.";
+      if (document.activeElement !== $("fpBatidas")) $("fpBatidas").value = fechamentoHoje.batidas_flowpack != null ? fechamentoHoje.batidas_flowpack : "";
+      if (document.activeElement !== $("fpSucos")) $("fpSucos").value = fechamentoHoje.sucos_mordidos != null ? fechamentoHoje.sucos_mordidos : "";
+    } else {
+      $("fechamentoInfo").textContent = "";
+    }
+  }
+
+  async function fecharDia() {
+    var batidasTxt = $("fpBatidas").value.trim();
+    var sucosTxt = $("fpSucos").value.trim();
+    if (batidasTxt === "" || sucosTxt === "") { setFecharStatus("Preencha os dois campos (Batidas Flowpack e Sucos Mordidos).", true); return; }
+    var nBatidas = Number(batidasTxt), nSucos = Number(sucosTxt);
+    if (!Number.isFinite(nBatidas) || nBatidas < 0 || !Number.isFinite(nSucos) || nSucos < 0) {
+      setFecharStatus("Os valores precisam ser números válidos (0 ou mais).", true);
+      return;
+    }
+    $("bFecharDia").disabled = true;
+    setFecharStatus("Salvando...", false);
+    try {
+      var r = await db.from("fechamento_dia")
+        .upsert({ data: hojeISODate(), batidas_flowpack: nBatidas, sucos_mordidos: nSucos, fechado_por: lider(), fechado_em: new Date().toISOString() }, { onConflict: "data" })
+        .select().single();
+      if (r.error) throw new Error(r.error.message);
+      fechamentoHoje = r.data;
+      renderFechamento();
+      setFecharStatus("Dia fechado com sucesso.", false);
+    } catch (e) {
+      setFecharStatus("Erro ao fechar o dia: " + e.message, true);
+    } finally {
+      $("bFecharDia").disabled = false;
+    }
+  }
+
+  async function exportarExcel() {
+    var de = $("expDe").value;
+    var ate = $("expAte").value;
+    if (!de || !ate) { setExportStatus("Escolha a data inicial e a final.", true); return; }
+    if (de > ate) { setExportStatus('A data "Exportar de" não pode ser depois da "Até".', true); return; }
+    $("bExportar").disabled = true;
+    setExportStatus("Gerando o Excel...", false);
+    try {
+      var r = await db.from("apontamentos").select("*")
+        .gte("inicio", de + "T00:00:00")
+        .lte("inicio", ate + "T23:59:59.999")
+        .order("inicio", { ascending: true });
+      if (r.error) throw new Error(r.error.message);
+      var linhas = (r.data || []).map(saida);
+      if (!linhas.length) { setExportStatus("Nenhum apontamento nesse período.", true); return; }
+      var dados = [["Ordem de Produção", "Início", "Líder (Início)", "Término", "Líder (Término)", "Duração (min)", "Status"]];
+      linhas.forEach(function (it) {
+        dados.push([
+          it.ordem,
+          fmt(it.inicio) || "",
+          it.lider_inicio || "",
+          fmt(it.termino) || "",
+          it.lider_termino || "",
+          it.duracao_min != null ? it.duracao_min : "",
+          it.status,
+        ]);
+      });
+      var ws = XLSX.utils.aoa_to_sheet(dados);
+      ws["!cols"] = [{ wch: 30 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Apontamentos");
+      var nomeArquivo = "apontamentos_" + de + "_a_" + ate + ".xlsx";
+      XLSX.writeFile(wb, nomeArquivo);
+      setExportStatus(linhas.length + " ordem(ns) exportada(s).", false);
+    } catch (e) {
+      setExportStatus("Erro ao exportar: " + e.message, true);
+    } finally {
+      $("bExportar").disabled = false;
+    }
+  }
 
   function saida(row) {
     return {
@@ -274,17 +401,23 @@
     // de hoje já finalizadas -- tempo total efetivamente trabalhado no dia.
     var horasEfetivasMin = finalizados.reduce(function (soma, it) { return soma + (it.duracao_min || 0); }, 0);
 
-    // Horas Paradas: desde o início da primeira ordem de hoje até agora, qual
-    // parte desse tempo NÃO foi produção (Horas Efetivas) -- ou seja, o tempo
-    // parado entre ordens (ou esperando a próxima começar).
+    // Horas Paradas: soma os intervalos de tempo ENTRE ordens de hoje -- do
+    // término de uma até o início da próxima. Se a última ordem já terminou
+    // e nenhuma nova começou ainda, soma também o tempo parado desde esse
+    // término até agora (ainda parado neste exato momento).
     var horasParadasMin = 0;
-    var primeiraOrdemInicio = null;
-    saidasHoje.forEach(function (it) {
-      if (!primeiraOrdemInicio || it.inicio < primeiraOrdemInicio) primeiraOrdemInicio = it.inicio;
+    var ordenadasPorInicio = saidasHoje.slice().sort(function (a, b) { return a.inicio < b.inicio ? -1 : (a.inicio > b.inicio ? 1 : 0); });
+    var fimAnterior = null;
+    ordenadasPorInicio.forEach(function (it) {
+      if (fimAnterior) {
+        var gapMin = Math.round((new Date(it.inicio) - new Date(fimAnterior)) / 60000);
+        if (gapMin > 0) horasParadasMin += gapMin;
+      }
+      fimAnterior = it.termino || null;
     });
-    if (primeiraOrdemInicio) {
-      var tempoTotalMin = Math.max(0, Math.round((new Date() - new Date(primeiraOrdemInicio)) / 60000));
-      horasParadasMin = Math.max(0, tempoTotalMin - horasEfetivasMin);
+    if (fimAnterior) {
+      var gapAgoraMin = Math.round((new Date() - new Date(fimAnterior)) / 60000);
+      if (gapAgoraMin > 0) horasParadasMin += gapAgoraMin;
     }
 
     // casa cada pedido de hoje com o apontamento correspondente (se já tiver um) --
@@ -358,10 +491,12 @@
       }).join("");
     }
 
-    $("nHist").textContent = saidas.length || "";
-    $("hist").innerHTML = saidas.length
-      ? saidas.map(linhaHist).join("")
-      : '<tr><td colspan="7" class="vazio">Nenhum apontamento registrado ainda.</td></tr>';
+    // Histórico na tela mostra só hoje -- o resto não desaparece, continua
+    // gravado pra sempre no banco (Supabase), só não é mais listado aqui.
+    $("nHist").textContent = saidasHoje.length || "";
+    $("hist").innerHTML = saidasHoje.length
+      ? saidasHoje.map(linhaHist).join("")
+      : '<tr><td colspan="7" class="vazio">Nenhum apontamento registrado hoje ainda.</td></tr>';
 
     // sugestões: primeiro os pedidos de hoje (carregados da planilha do Maxiprod),
     // depois nomes já usados antes que não estejam nessa lista
@@ -376,10 +511,13 @@
       if (!vistos[k]) { vistos[k] = 1; sugs.push(it.ordem); }
     });
     $("sugestoes").innerHTML = sugs.map(function (o) { return '<option value="' + esc(o) + '">'; }).join("");
+
+    renderFechamento();
   }
 
   function editando() {
-    return document.activeElement && document.activeElement.id === "ordem";
+    var el = document.activeElement;
+    return el && (el.id === "ordem" || el.id === "fpBatidas" || el.id === "fpSucos");
   }
 
   async function carregar() {
@@ -389,6 +527,9 @@
 
     var rp = await db.from("pedidos_do_dia").select("id, roteiro, pedido, entrega, cliente, qtd_kit, atualizado_em").order("atualizado_em", { ascending: true });
     if (!rp.error) pedidosHoje = rp.data || [];
+
+    var rf = await db.from("fechamento_dia").select("*").eq("data", hojeISODate()).maybeSingle();
+    if (!rf.error) fechamentoHoje = rf.data || null;
   }
 
   async function atualizar(forcar) {
@@ -472,6 +613,8 @@
   }
 
   $("bIniciar").addEventListener("click", iniciarOrdem);
+  $("bExportar").addEventListener("click", exportarExcel);
+  $("bFecharDia").addEventListener("click", fecharDia);
   $("ordem").addEventListener("keydown", function (e) { if (e.key === "Enter") iniciarOrdem(); });
   $("pedidos").addEventListener("click", function (e) {
     var br = e.target.closest("[data-remover]");
