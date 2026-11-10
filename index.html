@@ -139,6 +139,15 @@
   </div>
 
   <div class="cartao">
+    <h2>Pausa Almoço</h2>
+    <div id="pausaInfo" style="font-size:13px; margin-bottom:14px;"></div>
+    <div class="form-inicio">
+      <button type="button" class="p" id="bIniciarPausa">Iniciar Pausa</button>
+      <button type="button" class="fin" id="bFinalizarPausa" hidden>Finalizar Pausa</button>
+    </div>
+  </div>
+
+  <div class="cartao">
     <h2>Histórico <small id="nHist"></small></h2>
     <div class="form-inicio" style="margin-bottom:16px;">
       <label class="c2" for="expDe">Exportar de
@@ -192,6 +201,9 @@
   var itens = [];
   var pedidosHoje = [];
   var fechamentoHoje = null;
+  var pausasAlmoco = [];
+  var pausaAbertaAtual = null;
+  var LIMITE_PAUSA_ALMOCO_MIN = 72; // 1h12 -- pausa de almoço programada por lei
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; }); }
   function lider() { return $("lider").value.trim(); }
@@ -271,6 +283,53 @@
       if (document.activeElement !== $("fpSucos")) $("fpSucos").value = fechamentoHoje.sucos_mordidos != null ? fechamentoHoje.sucos_mordidos : "";
     } else {
       $("fechamentoInfo").textContent = "";
+    }
+  }
+
+  function renderPausaAlmoco(totalMin) {
+    var acimaDoLimite = totalMin > LIMITE_PAUSA_ALMOCO_MIN;
+    var estiloCor = acimaDoLimite ? ' style="color:var(--red); font-weight:600;"' : "";
+    var texto;
+    if (pausaAbertaAtual) {
+      texto = "Em andamento desde " + (fmt(pausaAbertaAtual.inicio) || "—") + " -- " + duracaoTxt(totalMin);
+    } else if (totalMin > 0) {
+      texto = "Hoje: " + duracaoTxt(totalMin) + " no total.";
+    } else {
+      texto = "Nenhuma pausa registrada hoje.";
+    }
+    $("pausaInfo").innerHTML = '<span' + estiloCor + '>' + esc(texto) + '</span>' +
+      ' <small style="color:var(--dim);">(limite: ' + duracaoTxt(LIMITE_PAUSA_ALMOCO_MIN) + ')</small>';
+    $("bIniciarPausa").hidden = !!pausaAbertaAtual;
+    $("bFinalizarPausa").hidden = !pausaAbertaAtual;
+  }
+
+  async function iniciarPausaAlmoco() {
+    $("bIniciarPausa").disabled = true;
+    try {
+      var r = await db.from("pausas_almoco").insert({ lider_inicio: lider() }).select().single();
+      if (r.error) throw new Error(r.error.message);
+      mostrarErro("");
+      await atualizar(true);
+    } catch (e) {
+      mostrarErro(e.message);
+    } finally {
+      $("bIniciarPausa").disabled = false;
+    }
+  }
+
+  async function finalizarPausaAlmoco() {
+    if (!pausaAbertaAtual) return;
+    $("bFinalizarPausa").disabled = true;
+    try {
+      var r = await db.from("pausas_almoco")
+        .update({ termino: new Date().toISOString(), lider_termino: lider() })
+        .eq("id", pausaAbertaAtual.id).is("termino", null).select();
+      if (r.error) throw new Error(r.error.message);
+      mostrarErro("");
+      await atualizar(true);
+    } catch (e) {
+      mostrarErro(e.message);
+      $("bFinalizarPausa").disabled = false;
     }
   }
 
@@ -420,6 +479,14 @@
       if (gapAgoraMin > 0) horasParadasMin += gapAgoraMin;
     }
 
+    // Pausa Almoço: pausa programada por lei -- não conta como Horas Paradas
+    // (tempo parado "de verdade"), por isso é abatida do total acima.
+    var pausasHoje = pausasAlmoco.filter(function (p) { return ehHoje(p.inicio); });
+    pausaAbertaAtual = pausasHoje.find(function (p) { return !p.termino; }) || null;
+    var pausaAlmocoMin = pausasHoje.reduce(function (soma, p) { return soma + (p.termino ? (duracaoMin(p.inicio, p.termino) || 0) : 0); }, 0);
+    if (pausaAbertaAtual) pausaAlmocoMin += Math.max(0, Math.round((new Date() - new Date(pausaAbertaAtual.inicio)) / 60000));
+    horasParadasMin = Math.max(0, horasParadasMin - pausaAlmocoMin);
+
     // casa cada pedido de hoje com o apontamento correspondente (se já tiver um) --
     // só considera apontamentos de HOJE, senão um pedido novo que reusa o mesmo
     // número de um pedido de um dia anterior (já finalizado naquele dia) ia
@@ -513,6 +580,7 @@
     $("sugestoes").innerHTML = sugs.map(function (o) { return '<option value="' + esc(o) + '">'; }).join("");
 
     renderFechamento();
+    renderPausaAlmoco(pausaAlmocoMin);
   }
 
   function editando() {
@@ -530,6 +598,9 @@
 
     var rf = await db.from("fechamento_dia").select("*").eq("data", hojeISODate()).maybeSingle();
     if (!rf.error) fechamentoHoje = rf.data || null;
+
+    var rpa = await db.from("pausas_almoco").select("*").order("inicio", { ascending: false });
+    if (!rpa.error) pausasAlmoco = rpa.data || [];
   }
 
   async function atualizar(forcar) {
@@ -615,6 +686,8 @@
   $("bIniciar").addEventListener("click", iniciarOrdem);
   $("bExportar").addEventListener("click", exportarExcel);
   $("bFecharDia").addEventListener("click", fecharDia);
+  $("bIniciarPausa").addEventListener("click", iniciarPausaAlmoco);
+  $("bFinalizarPausa").addEventListener("click", finalizarPausaAlmoco);
   $("ordem").addEventListener("keydown", function (e) { if (e.key === "Enter") iniciarOrdem(); });
   $("pedidos").addEventListener("click", function (e) {
     var br = e.target.closest("[data-remover]");
