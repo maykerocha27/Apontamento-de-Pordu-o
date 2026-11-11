@@ -70,6 +70,11 @@
   td.dh { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--dim); }
   .pill { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:4px 10px; border-radius:999px; white-space:nowrap; }
   .p-and { background:rgba(224,138,30,.14); color:#B86A0A; } .p-fim { background:rgba(30,154,90,.14); color:var(--green); }
+  .p-pendente { background:rgba(214,69,61,.12); color:var(--red); }
+  .busca-item { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+  .busca-item:last-child { border-bottom:none; }
+  .busca-item .ordem { font-weight:600; flex:1 1 220px; min-width:0; }
+  .busca-item .quando { color:var(--dim); font-size:12px; }
   tr.roteiro-header td { background:var(--surface-2); font-weight:700; font-size:12.5px; color:var(--amber); padding:10px 14px; border-bottom:1px solid var(--border); white-space:normal; }
   tr.roteiro-header td small { font-weight:500; color:var(--dim); text-transform:none; letter-spacing:0; margin-left:8px; }
   .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
@@ -116,6 +121,16 @@
   <div id="aviso" class="aviso" hidden></div>
 
   <div class="tiles" id="tiles"></div>
+
+  <div class="cartao">
+    <h2>Consultar Ordem / Pedido</h2>
+    <div class="form-inicio">
+      <label class="c2" for="buscaOrdem">Número do pedido ou nome da ordem
+        <input type="text" id="buscaOrdem" placeholder="ex: 6966" autocomplete="off">
+      </label>
+    </div>
+    <div id="buscaResultado" style="font-size:13px; margin-top:4px;"></div>
+  </div>
 
   <div class="cartao">
     <h2>Pedidos de hoje <small id="nPedidos"></small></h2>
@@ -581,6 +596,43 @@
 
     renderFechamento();
     renderPausaAlmoco(pausaAlmocoMin);
+    renderBusca();
+  }
+
+  // Consultar Ordem / Pedido: busca por número ou nome em TODO o histórico de
+  // apontamentos (não só hoje) e também nos pedidos carregados ainda não
+  // iniciados -- pra saber se uma ordem específica já foi produzida ou não,
+  // mesmo que ela não esteja na lista "Pedidos de hoje".
+  function renderBusca() {
+    var qTxt = $("buscaOrdem").value.trim();
+    var el = $("buscaResultado");
+    if (!qTxt) { el.innerHTML = ""; return; }
+    var q = norm(qTxt);
+
+    var achadosApontados = itens.filter(function (it) { return norm(it.ordem).indexOf(q) !== -1; });
+    var achadosPedidos = pedidosHoje.filter(function (p) {
+      return !p._apontamento && (norm(String(p.pedido)).indexOf(q) !== -1 || norm(String(p.cliente)).indexOf(q) !== -1);
+    });
+
+    if (!achadosApontados.length && !achadosPedidos.length) {
+      el.innerHTML = '<div class="busca-item"><span class="pill p-pendente">Não encontrado</span><span class="quando">Nenhum apontamento nem pedido carregado bate com "' + esc(qTxt) + '".</span></div>';
+      return;
+    }
+
+    var linhas = [];
+    achadosApontados.slice(0, 15).forEach(function (it) {
+      var finalizado = !!it.termino;
+      var pill = finalizado ? '<span class="pill p-fim">Produzido</span>' : '<span class="pill p-and">Em andamento</span>';
+      var quando = finalizado
+        ? ("finalizado em " + fmt(it.termino) + " (" + duracaoTxt(duracaoMin(it.inicio, it.termino)) + ")")
+        : ("iniciado em " + fmt(it.inicio));
+      linhas.push('<div class="busca-item"><span class="ordem">' + esc(it.ordem) + '</span>' + pill + '<span class="quando">' + esc(quando) + '</span></div>');
+    });
+    achadosPedidos.slice(0, 15).forEach(function (p) {
+      var texto = p.pedido + " - " + p.cliente;
+      linhas.push('<div class="busca-item"><span class="ordem">' + esc(texto) + '</span><span class="pill p-pendente">Ainda não iniciado</span><span class="quando">carregado na lista de pedidos, entrega ' + esc(dataBr(p.entrega)) + '</span></div>');
+    });
+    el.innerHTML = linhas.join("");
   }
 
   function editando() {
@@ -683,6 +735,7 @@
     setInterval(function () { atualizar(false); }, 15000);
   }
 
+  $("buscaOrdem").addEventListener("input", renderBusca);
   $("bIniciar").addEventListener("click", iniciarOrdem);
   $("bExportar").addEventListener("click", exportarExcel);
   $("bFecharDia").addEventListener("click", fecharDia);
